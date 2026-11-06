@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,19 +18,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,8 +42,17 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.stickylanguage.app.BuildConfig
 import com.stickylanguage.app.data.settings.ThemeMode
+import com.stickylanguage.app.ui.components.DashedRule
 import com.stickylanguage.app.ui.components.SectionLabel
+import com.stickylanguage.app.ui.components.StickyCard
+import com.stickylanguage.app.ui.components.StickySegmented
+import com.stickylanguage.app.ui.components.StickyTextButton
 import com.stickylanguage.app.ui.components.StickyTopBar
+import com.stickylanguage.app.ui.components.stickyContentInsets
+import com.stickylanguage.app.ui.components.stickyRadioColors
+import com.stickylanguage.app.ui.components.stickySwitchColors
+import com.stickylanguage.app.ui.components.stickyTextFieldColors
+import com.stickylanguage.app.ui.theme.sticky
 import com.stickylanguage.shared.anki.AnkiNoteType
 import com.stickylanguage.shared.anki.ExportTarget
 import com.stickylanguage.shared.model.Language
@@ -55,25 +60,33 @@ import com.stickylanguage.shared.model.Language
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val s by viewModel.settings.collectAsStateWithLifecycle()
+    val c = MaterialTheme.sticky
     var pickLearned by remember { mutableStateOf(false) }
     var pickExplanation by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = { StickyTopBar(title = "Settings") },
-        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = stickyContentInsets(),
+        containerColor = c.paper,
     ) { padding ->
         Column(
             Modifier
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .imePadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             // ---- Languages ----
             SectionLabel("Languages")
-            Spacer(Modifier.height(4.dp))
-            SettingRow(title = "I'm learning", value = s.learned.displayName) { pickLearned = true }
-            SettingRow(title = "Explain in", value = s.explanation.displayName) { pickExplanation = true }
+            Spacer(Modifier.height(6.dp))
+            StickyCard(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
+                Column {
+                    SettingRow(title = "I'm learning", value = s.learned.displayName) { pickLearned = true }
+                    DashedRule()
+                    SettingRow(title = "Explain in", value = s.explanation.displayName) { pickExplanation = true }
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -84,7 +97,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 if (s.hasBuildTimeKey) "A default API key is built into this app. Enter your own to override it."
                 else "No default key is built in. Enter an API key for an OpenAI-compatible endpoint.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = c.mid,
             )
             Spacer(Modifier.height(10.dp))
             SecretField(
@@ -120,7 +133,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 onCommit = { viewModel.setDeck(it.ifBlank { "Sticky Language" }) },
             )
             Spacer(Modifier.height(14.dp))
-            Text("Note type", style = MaterialTheme.typography.bodyLarge)
+            Text("Note type", style = MaterialTheme.typography.titleSmall)
             AnkiNoteType.entries.forEach { t ->
                 Row(
                     Modifier
@@ -129,21 +142,21 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(selected = s.anki.noteType == t, onClick = { viewModel.setNoteType(t) })
+                    RadioButton(selected = s.anki.noteType == t, onClick = { viewModel.setNoteType(t) }, colors = stickyRadioColors())
                     Column {
                         Text(t.label.substringBefore(" ("), style = MaterialTheme.typography.bodyMedium)
-                        Text(t.fields.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t.fields.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = c.mid)
                     }
                 }
             }
             Spacer(Modifier.height(6.dp))
             ToggleRow(title = "Include source sentence", checked = s.anki.includeSentence, onChange = viewModel::setIncludeSentence)
             Spacer(Modifier.height(10.dp))
-            Text("Export place", style = MaterialTheme.typography.bodyLarge)
+            Text("Export place", style = MaterialTheme.typography.titleSmall)
             Text(
                 if (viewModel.ankiDroidInstalled) "AnkiDroid is installed on this phone." else "AnkiDroid is not installed; files are saved as .apkg.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = c.mid,
             )
             ExportTarget.entries.forEach { t ->
                 Row(
@@ -153,7 +166,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         .padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(selected = s.anki.exportTarget == t, onClick = { viewModel.setExportTarget(t) })
+                    RadioButton(selected = s.anki.exportTarget == t, onClick = { viewModel.setExportTarget(t) }, colors = stickyRadioColors())
                     Text(t.label, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -163,15 +176,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             // ---- Appearance ----
             SectionLabel("Appearance")
             Spacer(Modifier.height(10.dp))
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                ThemeMode.entries.forEachIndexed { i, mode ->
-                    SegmentedButton(
-                        selected = s.themeMode == mode,
-                        onClick = { viewModel.setTheme(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index = i, count = ThemeMode.entries.size),
-                    ) { Text(mode.label) }
-                }
-            }
+            StickySegmented(
+                options = ThemeMode.entries.map { it.label },
+                selectedIndex = ThemeMode.entries.indexOf(s.themeMode),
+                onSelect = { viewModel.setTheme(ThemeMode.entries[it]) },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(32.dp))
         }
     }
@@ -198,16 +208,15 @@ private fun SettingRow(title: String, value: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        Text(value, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.sticky.ink)
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 }
 
 @Composable
 private fun ToggleRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = onChange, colors = stickySwitchColors())
     }
 }
 
@@ -231,6 +240,8 @@ private fun CommitTextField(
         singleLine = true,
         visualTransformation = visualTransformation,
         trailingIcon = trailingIcon,
+        colors = stickyTextFieldColors(),
+        shape = MaterialTheme.shapes.small,
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged { if (!it.isFocused && text != value) onCommit(text) },
@@ -256,6 +267,7 @@ private fun SecretField(label: String, value: String, placeholder: String, onCom
 
 @Composable
 private fun LanguagePicker(title: String, selected: Language, onDismiss: () -> Unit, onPick: (Language) -> Unit) {
+    val c = MaterialTheme.sticky
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -269,12 +281,16 @@ private fun LanguagePicker(title: String, selected: Language, onDismiss: () -> U
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = lang == selected, onClick = { onPick(lang) })
+                        RadioButton(selected = lang == selected, onClick = { onPick(lang) }, colors = stickyRadioColors())
                         Text(lang.displayName, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { StickyTextButton("Close", onClick = onDismiss) },
+        containerColor = c.paper,
+        titleContentColor = c.ink,
+        textContentColor = c.ink,
+        shape = MaterialTheme.shapes.small,
     )
 }

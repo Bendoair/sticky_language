@@ -29,8 +29,9 @@ android {
         versionName = "0.1.0"
 
         buildConfigField("String", "LLM_API_KEY", "\"${cfg("LLM_API_KEY")}\"")
-        buildConfigField("String", "LLM_BASE_URL", "\"${cfg("LLM_BASE_URL", "https://api.openai.com/v1")}\"")
-        buildConfigField("String", "LLM_MODEL", "\"${cfg("LLM_MODEL", "gpt-4o-mini")}\"")
+        // Defaults target Google AI Studio (Gemini) via its OpenAI-compatible endpoint.
+        buildConfigField("String", "LLM_BASE_URL", "\"${cfg("LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")}\"")
+        buildConfigField("String", "LLM_MODEL", "\"${cfg("LLM_MODEL", "gemini-2.0-flash")}\"")
     }
 
     buildTypes {

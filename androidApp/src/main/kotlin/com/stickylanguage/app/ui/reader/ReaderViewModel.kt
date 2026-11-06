@@ -27,9 +27,16 @@ sealed interface ReaderSheet {
     data class AnkiAdd(val draft: ExportNote) : ReaderSheet
 }
 
+/**
+ * Highlight: source is read-only; words are tappable (look-up / multi-select).
+ * Edit: source is a text field; no word taps, so you can't edit by accident while highlighting.
+ */
+enum class ReaderMode { Highlight, Edit }
+
 data class ReaderUi(
     val session: SessionState = SessionState(),
     val settings: AppSettings = AppSettings(),
+    val mode: ReaderMode = ReaderMode.Highlight,
     val multiSelect: Boolean = false,
     val selected: Set<Int> = emptySet(),
     val sheet: ReaderSheet? = null,
@@ -42,15 +49,44 @@ class ReaderViewModel @Inject constructor(
     private val exportRepo: ExportRepository,
 ) : ViewModel() {
 
-    private data class Local(val multiSelect: Boolean = false, val selected: Set<Int> = emptySet(), val sheet: ReaderSheet? = null)
+    private data class Local(
+        val mode: ReaderMode,
+        val multiSelect: Boolean = false,
+        val selected: Set<Int> = emptySet(),
+        val sheet: ReaderSheet? = null,
+    )
 
-    private val local = MutableStateFlow(Local())
+    // Default to Highlight; start in Edit only when there is nothing to highlight yet (Home → Type).
+    private val local = MutableStateFlow(
+        Local(
+            mode = session.state.value.let { s ->
+                if (s.sourceText.isBlank() && !s.ocrInProgress) ReaderMode.Edit else ReaderMode.Highlight
+            },
+        ),
+    )
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
 
     val ui: StateFlow<ReaderUi> = combine(session.state, settingsRepo.settings, local) { s, settings, l ->
-        ReaderUi(session = s, settings = settings, multiSelect = l.multiSelect, selected = l.selected, sheet = l.sheet)
+        ReaderUi(
+            session = s,
+            settings = settings,
+            mode = l.mode,
+            multiSelect = l.multiSelect,
+            selected = l.selected,
+            sheet = l.sheet,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUi())
+
+    // ----- Mode -----
+
+    fun setMode(mode: ReaderMode) {
+        local.update {
+            // Leaving Highlight drops any pending multi-selection; token taps are impossible in Edit.
+            if (mode == ReaderMode.Edit) it.copy(mode = mode, multiSelect = false, selected = emptySet())
+            else it.copy(mode = mode)
+        }
+    }
 
     // ----- Source / LLM triggers (explicit only) -----
 
@@ -60,7 +96,11 @@ class ReaderViewModel @Inject constructor(
         local.update { it.copy(selected = emptySet()) }
     }
 
-    fun translate() = session.translate()
+    /** Explicit user action. Switch back to Highlight so the new tokens are tappable as soon as they land. */
+    fun translate() {
+        session.translate()
+        local.update { it.copy(mode = ReaderMode.Highlight) }
+    }
 
     fun clearErrors() = session.clearErrors()
 

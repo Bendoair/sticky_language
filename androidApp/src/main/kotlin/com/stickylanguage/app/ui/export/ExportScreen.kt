@@ -21,16 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,7 +41,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.stickylanguage.app.anki.AnkiDroidApi
 import com.stickylanguage.app.ui.LocalAppChrome
 import com.stickylanguage.app.ui.anki.AnkiNoteSheet
+import com.stickylanguage.app.ui.components.DashedRule
+import com.stickylanguage.app.ui.components.StickyBottomBar
+import com.stickylanguage.app.ui.components.StickyButton
+import com.stickylanguage.app.ui.components.StickyCard
+import com.stickylanguage.app.ui.components.StickyIconButton
+import com.stickylanguage.app.ui.components.StickyTextButton
 import com.stickylanguage.app.ui.components.StickyTopBar
+import com.stickylanguage.app.ui.components.stickyContentInsets
+import com.stickylanguage.app.ui.theme.sticky
 import com.stickylanguage.shared.anki.ExportNote
 import com.stickylanguage.shared.anki.ExportTarget
 
@@ -54,6 +57,7 @@ import com.stickylanguage.shared.anki.ExportTarget
 fun ExportScreen(viewModel: ExportViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val chrome = LocalAppChrome.current
+    val c = MaterialTheme.sticky
     var confirmClear by remember { mutableStateOf(false) }
 
     val createFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -85,31 +89,30 @@ fun ExportScreen(viewModel: ExportViewModel = hiltViewModel()) {
                 title = "Export",
                 actions = {
                     if (ui.notes.isNotEmpty()) {
-                        IconButton(onClick = { confirmClear = true }) {
-                            Icon(Icons.Outlined.DeleteSweep, contentDescription = "Clear all")
-                        }
+                        StickyIconButton(Icons.Outlined.DeleteSweep, "Clear all", onClick = { confirmClear = true })
                     }
                 },
             )
         },
         bottomBar = {
-            Surface(tonalElevation = 2.dp) {
-                Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+            StickyBottomBar {
+                Column {
                     Text(
                         "Destination: $destination · deck “${ui.settings.anki.deckName}”",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = c.mid,
                     )
                     Spacer(Modifier.height(8.dp))
-                    Button(
+                    StickyButton(
+                        primary = true,
                         onClick = viewModel::exportAll,
                         enabled = ui.notes.isNotEmpty() && !ui.exporting,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         if (ui.exporting) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.paper)
                         } else {
-                            Icon(Icons.Outlined.FileUpload, contentDescription = null)
+                            Icon(Icons.Outlined.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                         }
                         Spacer(Modifier.width(8.dp))
                         Text("Export all to Anki (${ui.notes.size})")
@@ -117,28 +120,31 @@ fun ExportScreen(viewModel: ExportViewModel = hiltViewModel()) {
                 }
             }
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = stickyContentInsets(),
+        containerColor = c.paper,
     ) { padding ->
         if (ui.notes.isEmpty()) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                    Text("Nothing queued yet", style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Tap a word in the Reader or Grammar breakdown and choose “Add to Anki”.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            Box(Modifier.padding(padding).fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                StickyCard(dashed = true, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(20.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("Nothing queued yet", style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Tap a word in the Reader or Grammar breakdown and choose “Add to Anki”.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = c.mid,
+                        )
+                    }
                 }
             }
         } else {
             LazyColumn(
                 Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 items(ui.notes, key = { it.id }) { note ->
                     NoteRow(note = note, defaultsDeck = ui.settings.anki.deckName, onClick = { viewModel.edit(note) })
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    DashedRule()
                 }
             }
         }
@@ -160,19 +166,25 @@ fun ExportScreen(viewModel: ExportViewModel = hiltViewModel()) {
             onDismissRequest = { confirmClear = false },
             title = { Text("Clear export heap?") },
             text = { Text("All ${ui.notes.size} queued cards will be removed.") },
-            confirmButton = { TextButton(onClick = { viewModel.clearAll(); confirmClear = false }) { Text("Clear") } },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+            confirmButton = { StickyTextButton("Clear", onClick = { viewModel.clearAll(); confirmClear = false }) },
+            dismissButton = { StickyTextButton("Cancel", onClick = { confirmClear = false }) },
+            containerColor = c.paper,
+            titleContentColor = c.ink,
+            textContentColor = c.ink,
+            shape = MaterialTheme.shapes.small,
         )
     }
 }
 
+/** Prototype `.list li`: word / meaning on the left, "Edit" link on the right. */
 @Composable
 private fun NoteRow(note: ExportNote, defaultsDeck: String, onClick: () -> Unit) {
+    val c = MaterialTheme.sticky
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 4.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -181,7 +193,7 @@ private fun NoteRow(note: ExportNote, defaultsDeck: String, onClick: () -> Unit)
                 Text(note.word, style = MaterialTheme.typography.titleMedium)
                 if (note.reading.isNotBlank()) {
                     Spacer(Modifier.width(8.dp))
-                    Text(note.reading, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(note.reading, style = MaterialTheme.typography.bodySmall, color = c.mid)
                 }
             }
             Text(note.meaning, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -191,9 +203,9 @@ private fun NoteRow(note: ExportNote, defaultsDeck: String, onClick: () -> Unit)
                 note.includeSentenceOverride?.let { if (it) "with sentence" else "no sentence" },
             )
             if (extras.isNotEmpty()) {
-                Text(extras.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                Text(extras.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = c.mid)
             }
         }
-        Text("Edit", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        StickyTextButton("Edit", onClick = onClick)
     }
 }

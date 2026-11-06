@@ -6,23 +6,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.stickylanguage.app.ui.components.SectionLabel
+import com.stickylanguage.app.ui.components.StickyButton
+import com.stickylanguage.app.ui.components.StickyTextButton
+import com.stickylanguage.app.ui.components.stickySwitchColors
+import com.stickylanguage.app.ui.components.stickyTextFieldColors
+import com.stickylanguage.app.ui.theme.sticky
 import com.stickylanguage.shared.anki.AnkiDefaults
 import com.stickylanguage.shared.anki.AnkiNoteType
 import com.stickylanguage.shared.anki.ExportNote
@@ -50,7 +47,7 @@ fun AnkiNoteSheet(
     onConfirm: (ExportNote) -> Unit,
     onDelete: (() -> Unit)? = null,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val c = MaterialTheme.sticky
 
     var word by remember(draft) { mutableStateOf(draft.word) }
     var reading by remember(draft) { mutableStateOf(draft.reading) }
@@ -62,25 +59,21 @@ fun AnkiNoteSheet(
     var includeSentence by remember(draft) { mutableStateOf(draft.includeSentence(defaults)) }
     var typeMenuOpen by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(
-            Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    val fieldColors = stickyTextFieldColors()
+    val fieldShape = MaterialTheme.shapes.small
+
+    StickySheet(onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Anki card", style = MaterialTheme.typography.headlineSmall)
 
             SectionLabel("Card content")
-            OutlinedTextField(value = word, onValueChange = { word = it }, label = { Text("Word") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = reading, onValueChange = { reading = it }, label = { Text("Reading") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = meaning, onValueChange = { meaning = it }, label = { Text("Meaning") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = grammar, onValueChange = { grammar = it }, label = { Text("Grammar note") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = word, onValueChange = { word = it }, label = { Text("Word") }, singleLine = true, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = reading, onValueChange = { reading = it }, label = { Text("Reading") }, singleLine = true, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = meaning, onValueChange = { meaning = it }, label = { Text("Meaning") }, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = grammar, onValueChange = { grammar = it }, label = { Text("Grammar note") }, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
 
             SectionLabel("Anki settings")
-            OutlinedTextField(value = deck, onValueChange = { deck = it }, label = { Text("Deck") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = deck, onValueChange = { deck = it }, label = { Text("Deck") }, singleLine = true, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
             ExposedDropdownMenuBox(expanded = typeMenuOpen, onExpandedChange = { typeMenuOpen = it }) {
                 OutlinedTextField(
                     value = noteType.label,
@@ -88,13 +81,19 @@ fun AnkiNoteSheet(
                     readOnly = true,
                     label = { Text("Note type") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuOpen) },
+                    colors = fieldColors,
+                    shape = fieldShape,
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
-                ExposedDropdownMenu(expanded = typeMenuOpen, onDismissRequest = { typeMenuOpen = false }) {
+                ExposedDropdownMenu(
+                    expanded = typeMenuOpen,
+                    onDismissRequest = { typeMenuOpen = false },
+                    containerColor = c.paper,
+                ) {
                     AnkiNoteType.entries.forEach { t ->
-                        DropdownMenuItem(text = { Text(t.label) }, onClick = { noteType = t; typeMenuOpen = false })
+                        DropdownMenuItem(text = { Text(t.label, color = c.ink) }, onClick = { noteType = t; typeMenuOpen = false })
                     }
                 }
             }
@@ -102,17 +101,18 @@ fun AnkiNoteSheet(
                 Column(Modifier.weight(1f)) {
                     Text("Include source sentence", style = MaterialTheme.typography.bodyLarge)
                     if (sentence.isNotBlank()) {
-                        Text(sentence, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                        Text(sentence, style = MaterialTheme.typography.bodySmall, color = c.mid, maxLines = 2)
                     }
                 }
-                Switch(checked = includeSentence, onCheckedChange = { includeSentence = it })
+                Switch(checked = includeSentence, onCheckedChange = { includeSentence = it }, colors = stickySwitchColors())
             }
             if (includeSentence) {
-                OutlinedTextField(value = sentence, onValueChange = { sentence = it }, label = { Text("Sentence") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = sentence, onValueChange = { sentence = it }, label = { Text("Sentence") }, colors = fieldColors, shape = fieldShape, modifier = Modifier.fillMaxWidth())
             }
 
             Spacer(Modifier.height(4.dp))
-            Button(
+            StickyButton(
+                primary = true,
                 enabled = word.isNotBlank() && meaning.isNotBlank(),
                 onClick = {
                     onConfirm(
@@ -131,8 +131,8 @@ fun AnkiNoteSheet(
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(confirmLabel) }
             if (onDelete != null) {
-                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
-                    Text("Remove from export", color = MaterialTheme.colorScheme.error)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    StickyTextButton("Remove from export", onClick = onDelete)
                 }
             }
         }
