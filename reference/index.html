@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sticky Language – Lo-fi Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: presenter panel (not part of the app) ============ -->
+  <aside class="panel">
+    <h1>Sticky Language</h1>
+    <p class="sub">Low-fidelity interface prototype · Icy Goo Lab</p>
+
+    <h2>Jump to screen</h2>
+    <ol class="screen-list" id="screenList">
+      <li data-go="home">Home</li>
+      <li data-go="scan">Scan (OCR camera)</li>
+      <li data-go="reader">Reader + tap-to-lookup</li>
+      <li data-go="breakdown">Grammar breakdown</li>
+      <li data-go="translate">Text translate</li>
+      <li data-go="settings">Settings</li>
+    </ol>
+    <p class="tiny">Anki hand-off: Reader → tap a word → <b>Export to Anki</b></p>
+
+    <h2>Screen notes</h2>
+    <div class="note" id="screenNote"></div>
+
+    <h2>Inspired by</h2>
+    <ul class="legend">
+      <li><b>Papago</b> – camera / text translation</li>
+      <li><b>Mirinae</b> – sentence-level grammar breakdown</li>
+      <li><b>Yomitan</b> – tap any word for a dictionary pop-up</li>
+      <li><b>Anki</b> – tap a word → send it to the installed Anki app</li>
+    </ul>
+  </aside>
+
+  <!-- ============ RIGHT: phone ============ -->
+  <div class="phone">
+    <div class="statusbar"><span>9:41</span><span>▮▮▮ ◔ ▭</span></div>
+
+    <div class="screens">
+
+      <!-- ===== HOME ===== -->
+      <section class="screen" data-screen="home">
+        <header class="topbar">
+          <div class="logo-box">LOGO</div>
+          <span class="title">Sticky Language</span>
+          <button class="icon-btn" data-go="settings" title="Settings">⚙</button>
+        </header>
+
+        <div class="content">
+          <p class="hello">Hi, Karina 👋</p>
+          <div class="lang-pill">KO → EN ▾</div>
+
+          <button class="big-action" data-go="scan">
+            <span class="ico">◉</span>
+            <span><b>Scan text</b><br><small>Camera · screenshot · photo</small></span>
+          </button>
+
+          <div class="row two">
+            <button class="mid-action" data-go="translate"><span class="ico">Aa</span>Type / paste</button>
+            <button class="mid-action" id="importImg"><span class="ico">▣</span>Import image</button>
+          </div>
+
+          <div class="card anki-status">
+            <span class="anki-logo">A</span>
+            <div><b>AnkiDroid connected</b><small>Tap any word → Export to Anki</small></div>
+            <span class="dot-ok">●</span>
+          </div>
+
+          <h3 class="section">Recent scans</h3>
+          <ul class="list">
+            <li data-go="reader">
+              <div class="thumb"></div>
+              <div><b>저는 어제 친구와 함께…</b><small>Book page · today</small></div>
+              <span class="chev">›</span>
+            </li>
+            <li data-go="reader">
+              <div class="thumb"></div>
+              <div><b>지하철 2호선 강남역 방면</b><small>Street sign · yesterday</small></div>
+              <span class="chev">›</span>
+            </li>
+            <li data-go="reader">
+              <div class="thumb"></div>
+              <div><b>오늘의 메뉴: 김치찌개…</b><small>Menu · 3 days ago</small></div>
+              <span class="chev">›</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===== SCAN ===== -->
+      <section class="screen dark" data-screen="scan">
+        <header class="topbar on-dark">
+          <button class="icon-btn" data-go="home">✕</button>
+          <span class="title">Scan</span>
+          <button class="icon-btn" id="flashBtn" title="Flash">ϟ</button>
+        </header>
+
+        <div class="viewfinder" id="viewfinder">
+          <div class="vf-placeholder">[ live camera feed ]</div>
+          <div class="frame"><i></i><i></i><i></i><i></i></div>
+          <div class="ocr-box b1">저는 어제 친구와 함께</div>
+          <div class="ocr-box b2">도서관에 갔어요.</div>
+          <div class="ocr-box b3">책을 두 권 빌렸어요.</div>
+          <div class="scan-line"></div>
+          <div class="vf-hint" id="vfHint">Point at text · hold steady</div>
+        </div>
+
+        <div class="scan-modes" id="scanModes">
+          <span data-mode="photo" class="on">Photo</span>
+          <span data-mode="live">Live overlay</span>
+          <span data-mode="screen">Screenshot</span>
+        </div>
+
+        <div class="scan-controls">
+          <button class="gallery" title="Pick from gallery">▣</button>
+          <button class="shutter" id="shutter" title="Capture"></button>
+          <button class="gallery" title="Language">KO</button>
+        </div>
+      </section>
+
+      <!-- ===== READER ===== -->
+      <section class="screen" data-screen="reader">
+        <header class="topbar">
+          <button class="icon-btn" data-go="home">‹</button>
+          <span class="title">Scanned text</span>
+          <button class="icon-btn" title="Share">⇪</button>
+        </header>
+
+        <div class="content">
+          <div class="source-img">
+            <div class="thumb wide"></div>
+            <small>Original image · tap to view</small>
+          </div>
+
+          <div class="label-row">
+            <span class="label">Korean (detected)</span>
+            <span class="tiny">✎ edit OCR</span>
+          </div>
+          <div class="card text-block" id="sourceText"></div>
+          <p class="hint">👆 Tap any word for an instant dictionary pop-up</p>
+
+          <div class="label-row">
+            <span class="label">English translation</span>
+            <span class="tiny">🔊 ⧉</span>
+          </div>
+          <div class="card text-block muted-bg" id="translationText">
+            I went to the library with my friend yesterday.<br>
+            I borrowed two books.
+          </div>
+
+          <button class="btn primary full" data-go="breakdown">Grammar breakdown</button>
+        </div>
+
+      </section>
+
+      <!-- ===== BREAKDOWN ===== -->
+      <section class="screen" data-screen="breakdown">
+        <header class="topbar">
+          <button class="icon-btn" data-go="reader">‹</button>
+          <span class="title">Breakdown</span>
+          <button class="icon-btn" title="Regenerate">↻</button>
+        </header>
+
+        <div class="content">
+          <div class="list-head">
+            <div><b>Book page</b><small id="sentCount">0 sentences</small></div>
+            <button class="tiny link" id="toggleAll">Expand all</button>
+          </div>
+
+          <div class="sent-list" id="sentList"></div>
+        </div>
+      </section>
+
+      <!-- ===== TRANSLATE ===== -->
+      <section class="screen" data-screen="translate">
+        <header class="topbar">
+          <button class="icon-btn" data-go="home">‹</button>
+          <span class="title">Translate</span>
+          <span class="icon-btn"></span>
+        </header>
+
+        <div class="content">
+          <div class="lang-swap">
+            <span class="lang" id="langA">Korean ▾</span>
+            <button class="icon-btn" id="swapBtn" title="Swap">⇄</button>
+            <span class="lang" id="langB">English ▾</span>
+          </div>
+
+          <div class="card input-card">
+            <textarea id="transInput" placeholder="Type or paste text…">저는 어제 친구와 함께 도서관에 갔어요.</textarea>
+            <div class="input-tools">
+              <span>🎤</span><span>◉</span><span>📋</span>
+              <span class="count" id="charCount">0 / 5000</span>
+            </div>
+          </div>
+
+          <button class="btn primary full" id="translateBtn">Translate</button>
+
+          <div class="card output-card" id="transOutput">
+            <div class="label">English</div>
+            <p id="transResult">I went to the library with my friend yesterday.</p>
+            <div class="label">Words · tap to look up</div>
+            <div class="tok-line" id="transTokens"></div>
+            <div class="row two">
+              <button class="btn" data-go="reader">Open in reader</button>
+              <button class="btn" data-go="breakdown">Break down</button>
+            </div>
+          </div>
+
+          <h3 class="section">History</h3>
+          <ul class="list compact">
+            <li><div><b>감사합니다</b><small>Thank you</small></div><span>☆</span></li>
+            <li><div><b>화장실이 어디예요?</b><small>Where is the bathroom?</small></div><span>★</span></li>
+            <li><div><b>이거 얼마예요?</b><small>How much is this?</small></div><span>☆</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===== SETTINGS ===== -->
+      <section class="screen" data-screen="settings">
+        <header class="topbar">
+          <button class="icon-btn" data-go="home">‹</button>
+          <span class="title">Settings</span>
+          <span class="icon-btn"></span>
+        </header>
+
+        <div class="content">
+          <div class="profile">
+            <div class="avatar"></div>
+            <div><b>Karina</b><small>Free plan</small></div>
+          </div>
+
+          <h3 class="section">Languages</h3>
+          <ul class="list compact">
+            <li><div><b>I'm learning</b></div><span>Korean ›</span></li>
+            <li><div><b>Explain in</b></div><span>English ›</span></li>
+          </ul>
+
+          <h3 class="section">Learning</h3>
+          <ul class="list compact">
+            <li><div><b>Show romanization</b></div><span class="toggle on"></span></li>
+            <li><div><b>Hanja / origin notes</b></div><span class="toggle"></span></li>
+          </ul>
+
+          <h3 class="section">Scanning</h3>
+          <ul class="list compact">
+            <li><div><b>On-device OCR only</b><small>Works offline, less accurate</small></div><span class="toggle"></span></li>
+            <li><div><b>Auto-open breakdown</b></div><span class="toggle on"></span></li>
+          </ul>
+
+          <h3 class="section">Anki</h3>
+          <ul class="list compact">
+            <li><div><b>Send words to</b><small>Detected on this phone</small></div><span>AnkiDroid ✓ ›</span></li>
+            <li><div><b>Target deck</b></div><span>Korean::Sticky ›</span></li>
+            <li><div><b>Note type</b></div><span>Basic + sentence ›</span></li>
+            <li><div><b>Include source sentence</b></div><span class="toggle on"></span></li>
+            <li><div><b>Skip Anki screen (add silently)</b></div><span class="toggle"></span></li>
+          </ul>
+        </div>
+      </section>
+
+    </div><!-- /screens -->
+
+    <!-- bottom tabs -->
+    <nav class="tabbar" id="tabbar">
+      <button data-go="home"><span>⌂</span>Home</button>
+      <button data-go="scan"><span>◉</span>Scan</button>
+      <button data-go="translate"><span>Aa</span>Translate</button>
+      <button data-go="settings"><span>☺</span>Me</button>
+    </nav>
+
+    <!-- Yomitan-style pop-up -->
+    <div class="sheet-backdrop" id="popupBackdrop"></div>
+    <div class="sheet" id="wordPopup">
+      <div class="grab"></div>
+      <div class="pop-head">
+        <div>
+          <div class="pop-word" id="popWord">도서관</div>
+          <div class="pop-read" id="popRead">do-seo-gwan · 圖書館</div>
+        </div>
+        <button class="icon-btn" title="Play audio">🔊</button>
+      </div>
+      <div class="tags" id="popTags"></div>
+      <ol class="defs" id="popDefs"></ol>
+      <div class="pop-form" id="popForm"></div>
+      <div class="pop-example" id="popEx"></div>
+      <button class="btn primary full anki-btn" id="popAnki"><span class="anki-logo inv">A</span> Export to Anki</button>
+      <small class="center">Opens AnkiDroid with this word pre-filled</small>
+    </div>
+
+    <!-- Anki hand-off (simulates the installed Anki app opening) -->
+    <div class="handoff" id="handoff">
+      <div class="handoff-step" id="hoOpening">
+        <div class="spinner"></div>
+        <p>Opening <b>AnkiDroid</b>…</p>
+        <small>Android intent / iOS URL scheme</small>
+      </div>
+      <div class="handoff-step anki-app" id="hoAnki">
+        <div class="ext-label">EXTERNAL APP · AnkiDroid</div>
+        <header class="topbar">
+          <button class="icon-btn" id="hoCancel" title="Cancel">✕</button>
+          <span class="title">Add note</span>
+          <button class="icon-btn" id="hoAdd" title="Add">✓</button>
+        </header>
+        <div class="content">
+          <div class="field"><label>Type</label><div class="input">Sticky Language (basic + sentence) ▾</div></div>
+          <div class="field"><label>Deck</label><div class="input">Korean::Sticky ▾</div></div>
+          <div class="field"><label>Front</label><div class="input big" id="hoFront">도서관</div></div>
+          <div class="field"><label>Reading</label><div class="input" id="hoRead">do-seo-gwan</div></div>
+          <div class="field"><label>Meaning</label><div class="input" id="hoBack">library</div></div>
+          <div class="field"><label>Sentence</label><div class="input" id="hoSent">저는 어제 친구와 함께 &lt;b&gt;도서관에&lt;/b&gt; 갔어요.</div></div>
+          <div class="field"><label>Tags</label><div class="input">sticky-language korean</div></div>
+          <button class="btn primary full" id="hoAddBtn">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

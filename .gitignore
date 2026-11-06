@@ -1,0 +1,40 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local config / secrets (contains sdk.dir and LLM_API_KEY)
+local.properties
+*.keystore
+*.jks
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.cursor/
+*.swp
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output-metadata.json
+lint-results*.html
+lint-results*.xml
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Profiling / misc
+*.hprof
+kotlin-js-store/
+.navigation/
