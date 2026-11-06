@@ -8,10 +8,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.stickylanguage.app.BuildConfig
+import com.stickylanguage.app.llm.local.ModelCatalog
 import com.stickylanguage.shared.anki.AnkiDefaults
 import com.stickylanguage.shared.anki.AnkiNoteType
 import com.stickylanguage.shared.anki.ExportTarget
 import com.stickylanguage.shared.llm.LlmConfig
+import com.stickylanguage.shared.llm.LlmProvider
 import com.stickylanguage.shared.model.Language
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +31,8 @@ data class AppSettings(
     val apiKeyOverride: String = "",
     val baseUrlOverride: String = "",
     val modelOverride: String = "",
+    val llmProvider: LlmProvider = LlmProvider.CLOUD,
+    val localModelId: String = ModelCatalog.DEFAULT_ID,
     val anki: AnkiDefaults = AnkiDefaults(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
 ) {
@@ -53,6 +57,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         val apiKey = stringPreferencesKey("llm_api_key")
         val baseUrl = stringPreferencesKey("llm_base_url")
         val model = stringPreferencesKey("llm_model")
+        val llmProvider = stringPreferencesKey("llm_provider")
+        val localModelId = stringPreferencesKey("local_model_id")
         val ankiDeck = stringPreferencesKey("anki_deck")
         val ankiNoteType = stringPreferencesKey("anki_note_type")
         val ankiIncludeSentence = booleanPreferencesKey("anki_include_sentence")
@@ -67,6 +73,10 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
             apiKeyOverride = p[Keys.apiKey].orEmpty(),
             baseUrlOverride = p[Keys.baseUrl].orEmpty(),
             modelOverride = p[Keys.model].orEmpty(),
+            llmProvider = p[Keys.llmProvider]?.let { name ->
+                LlmProvider.entries.firstOrNull { it.name == name }
+            } ?: LlmProvider.CLOUD,
+            localModelId = p[Keys.localModelId]?.takeIf { it.isNotBlank() } ?: ModelCatalog.DEFAULT_ID,
             anki = AnkiDefaults(
                 deckName = p[Keys.ankiDeck]?.takeIf { it.isNotBlank() } ?: AnkiDefaults().deckName,
                 noteType = AnkiNoteType.byName(p[Keys.ankiNoteType]),
@@ -87,6 +97,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setApiKeyOverride(value: String) = edit { it[Keys.apiKey] = value.trim() }
     suspend fun setBaseUrlOverride(value: String) = edit { it[Keys.baseUrl] = value.trim() }
     suspend fun setModelOverride(value: String) = edit { it[Keys.model] = value.trim() }
+    suspend fun setLlmProvider(provider: LlmProvider) = edit { it[Keys.llmProvider] = provider.name }
+    suspend fun setLocalModelId(id: String) = edit { it[Keys.localModelId] = id }
     suspend fun setAnkiDeck(value: String) = edit { it[Keys.ankiDeck] = value.trim() }
     suspend fun setAnkiNoteType(type: AnkiNoteType) = edit { it[Keys.ankiNoteType] = type.name }
     suspend fun setAnkiIncludeSentence(value: Boolean) = edit { it[Keys.ankiIncludeSentence] = value }

@@ -18,7 +18,6 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import java.io.IOException
 
@@ -26,20 +25,12 @@ import java.io.IOException
  * Ktor-based client for an OpenAI-compatible chat completions endpoint that returns
  * strictly structured JSON. Config is resolved per call so Settings changes apply immediately.
  */
-class LlmClient(
+class RemoteLlmBackend(
     engine: HttpClientEngine,
     private val configProvider: suspend () -> LlmConfig,
-) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-        explicitNulls = false
-        encodeDefaults = true
-    }
-
+) : LlmBackend {
     private val http = HttpClient(engine) {
-        install(ContentNegotiation) { json(json) }
+        install(ContentNegotiation) { json(LlmJson.instance) }
         install(HttpTimeout) {
             requestTimeoutMillis = 120_000
             connectTimeoutMillis = 20_000
@@ -48,7 +39,7 @@ class LlmClient(
         expectSuccess = false
     }
 
-    suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult =
+    override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult =
         complete(
             schemaName = "sticky_translation",
             schema = LlmSchemas.translation,
@@ -60,7 +51,7 @@ class LlmClient(
             result.copy(sourceText = source)
         }
 
-    suspend fun breakdown(source: String, learned: Language, explain: Language): BreakdownResult =
+    override suspend fun breakdown(source: String, learned: Language, explain: Language): BreakdownResult =
         complete(
             schemaName = "sticky_breakdown",
             schema = LlmSchemas.breakdown,
@@ -134,7 +125,7 @@ class LlmClient(
 
             // Layer 3: strict client-side parsing with one retry.
             try {
-                return json.decodeFromString(serializer, stripFences(text))
+                return LlmJson.decode(serializer, text)
             } catch (e: Exception) {
                 lastError = LlmException.InvalidResponse("invalid JSON (${e.message?.take(120)})", e)
                 if (invalidRetryLeft-- > 0) continue
@@ -147,10 +138,7 @@ class LlmClient(
         val b = body.lowercase()
         return "response_format" in b || "json_schema" in b || "structured" in b || "schema" in b
     }
-
-    private fun stripFences(text: String): String {
-        val t = text.trim()
-        if (!t.startsWith("```")) return t
-        return t.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-    }
 }
+
+/** @deprecated Prefer [RemoteLlmBackend] / [LlmBackend]. Kept as a type alias for call-site clarity. */
+typealias LlmClient = LlmBackend

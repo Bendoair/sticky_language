@@ -5,7 +5,10 @@ import androidx.room.Room
 import com.stickylanguage.app.data.export.AppDatabase
 import com.stickylanguage.app.data.export.ExportNoteDao
 import com.stickylanguage.app.data.settings.SettingsRepository
-import com.stickylanguage.shared.llm.LlmClient
+import com.stickylanguage.app.llm.RoutingLlmBackend
+import com.stickylanguage.shared.llm.LlmBackend
+import com.stickylanguage.shared.llm.RemoteLlmBackend
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,6 +36,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideLlmClient(engine: HttpClientEngine, settings: SettingsRepository): LlmClient =
-        LlmClient(engine) { settings.current().llmConfig }
+    fun provideRemoteLlmBackend(engine: HttpClientEngine, settings: SettingsRepository): RemoteLlmBackend =
+        RemoteLlmBackend(engine) { settings.current().llmConfig }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class LlmBindingsModule {
+    @Binds
+    @Singleton
+    abstract fun bindLlmBackend(impl: RoutingLlmBackend): LlmBackend
 }

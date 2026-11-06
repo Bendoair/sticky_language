@@ -28,6 +28,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // llama-kotlin ships arm64-v8a + x86_64 natives only.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
         buildConfigField("String", "LLM_API_KEY", "\"${cfg("LLM_API_KEY")}\"")
         // Defaults target Google AI Studio (Gemini) via its OpenAI-compatible endpoint.
         buildConfigField("String", "LLM_BASE_URL", "\"${cfg("LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")}\"")
@@ -97,6 +102,10 @@ dependencies {
     implementation(libs.mlkit.text.recognition.devanagari)
 
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.okhttp)
+    // Vendored llama.cpp Kotlin binding (ThalzeronLabs/llama-kotlin v0.2.2).
+    // AAR metadata patched to minCompileSdk=35 so AGP 8.9 can consume it.
+    implementation(files("libs/llama-kotlin-0.2.2.aar"))
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)

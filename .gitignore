@@ -38,3 +38,10 @@ Thumbs.db
 *.hprof
 kotlin-js-store/
 .navigation/
+
+# Local LLM host smoke (cloned llama.cpp + downloaded GGUFs)
+tools/local-llm-smoke/llama.cpp/
+tools/local-llm-smoke/models/
+tools/local-llm-smoke/failures/
+tools/local-llm-smoke/last-run.log
+tools/local-llm-smoke/*.gguf

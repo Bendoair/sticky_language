@@ -2,8 +2,10 @@ package com.stickylanguage.app.data.session
 
 import android.net.Uri
 import com.stickylanguage.app.data.settings.SettingsRepository
+import com.stickylanguage.app.llm.local.LocalEnginePhase
+import com.stickylanguage.app.llm.local.LocalLlmBackend
 import com.stickylanguage.app.ocr.OcrService
-import com.stickylanguage.shared.llm.LlmClient
+import com.stickylanguage.shared.llm.LlmBackend
 import com.stickylanguage.shared.llm.LlmException
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.TranslationResult
@@ -32,6 +34,7 @@ data class SessionState(
     val translatedSource: String? = null,
     val translating: Boolean = false,
     val translateError: String? = null,
+    val localPhase: LocalEnginePhase = LocalEnginePhase.Idle,
 
     val breakdown: BreakdownResult? = null,
     val breakdownSource: String? = null,
@@ -45,12 +48,13 @@ data class SessionState(
 
 /**
  * Owns the session and the explicit LLM triggers. Nothing here runs on text edits;
- * every network call corresponds to a user action (OCR finished, Translate tap, Grammar tap).
+ * every network / local inference call corresponds to a user action.
  */
 @Singleton
 class SessionController @Inject constructor(
     private val ocr: OcrService,
-    private val llm: LlmClient,
+    private val llm: LlmBackend,
+    private val local: LocalLlmBackend,
     private val settings: SettingsRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -61,11 +65,20 @@ class SessionController @Inject constructor(
     private var ocrJob: Job? = null
     private var translateJob: Job? = null
     private var breakdownJob: Job? = null
+    private var phaseJob: Job? = null
+
+    init {
+        phaseJob = scope.launch {
+            local.phase.collect { phase ->
+                _state.update { it.copy(localPhase = phase) }
+            }
+        }
+    }
 
     /** "Type" entry point: empty editable source, no network. */
     fun startEmpty() {
         cancelAll()
-        _state.value = SessionState()
+        _state.value = SessionState(localPhase = local.phase.value)
     }
 
     /**
@@ -74,7 +87,7 @@ class SessionController @Inject constructor(
      */
     fun startFromImage(uri: Uri) {
         cancelAll()
-        _state.value = SessionState(ocrInProgress = true)
+        _state.value = SessionState(ocrInProgress = true, localPhase = local.phase.value)
         ocrJob = scope.launch {
             val learned = settings.current().learned
             val result = runCatching { ocr.recognize(uri, learned.script) }

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.stickylanguage.app.llm.local.LocalEnginePhase
 import com.stickylanguage.app.ui.LocalAppChrome
 import com.stickylanguage.app.ui.anki.AnkiNoteSheet
 import com.stickylanguage.app.ui.anki.WordSheet
@@ -96,7 +97,15 @@ fun GrammarScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = c.ink, trackColor = c.fill)
                     Spacer(Modifier.height(12.dp))
-                    Text("Analysing sentences…", style = MaterialTheme.typography.bodyMedium, color = c.mid)
+                    Text(
+                        when (s.localPhase) {
+                            LocalEnginePhase.LoadingModel -> "Loading on-device model…"
+                            LocalEnginePhase.Generating -> "Analysing on-device…"
+                            else -> "Analysing sentences…"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.mid,
+                    )
                 }
             }
 

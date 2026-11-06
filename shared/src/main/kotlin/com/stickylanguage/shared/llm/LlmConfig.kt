@@ -13,6 +13,7 @@ data class LlmConfig(
 
 sealed class LlmException(message: String, cause: Throwable? = null) : Exception(message, cause) {
     class NotConfigured : LlmException("No API key configured. Add one in Settings.")
+    class LocalNotReady(detail: String) : LlmException(detail)
     class Http(val status: Int, body: String) : LlmException("LLM request failed ($status): ${body.take(300)}")
     class Network(cause: Throwable) : LlmException("Network error: ${cause.message ?: cause::class.simpleName}", cause)
     class InvalidResponse(detail: String, cause: Throwable? = null) :

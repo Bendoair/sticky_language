@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.stickylanguage.app.llm.local.LocalEnginePhase
 import com.stickylanguage.app.ui.LocalAppChrome
 import com.stickylanguage.app.ui.anki.AnkiNoteSheet
 import com.stickylanguage.app.ui.anki.WordSheet
@@ -219,7 +220,14 @@ fun ReaderScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = c.ink)
                         Spacer(Modifier.width(12.dp))
-                        Text("Translating…", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            when (s.localPhase) {
+                                LocalEnginePhase.LoadingModel -> "Loading on-device model…"
+                                LocalEnginePhase.Generating -> "Generating on-device…"
+                                else -> "Translating…"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
 

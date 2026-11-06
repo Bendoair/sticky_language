@@ -3,6 +3,7 @@ package com.stickylanguage.app.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -18,8 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -42,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.stickylanguage.app.BuildConfig
 import com.stickylanguage.app.data.settings.ThemeMode
+import com.stickylanguage.app.llm.local.ModelDownloadState
 import com.stickylanguage.app.ui.components.DashedRule
 import com.stickylanguage.app.ui.components.SectionLabel
 import com.stickylanguage.app.ui.components.StickyCard
@@ -55,11 +61,13 @@ import com.stickylanguage.app.ui.components.stickyTextFieldColors
 import com.stickylanguage.app.ui.theme.sticky
 import com.stickylanguage.shared.anki.AnkiNoteType
 import com.stickylanguage.shared.anki.ExportTarget
+import com.stickylanguage.shared.llm.LlmProvider
 import com.stickylanguage.shared.model.Language
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
-    val s by viewModel.settings.collectAsStateWithLifecycle()
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val s = ui.settings
     val c = MaterialTheme.sticky
     var pickLearned by remember { mutableStateOf(false) }
     var pickExplanation by remember { mutableStateOf(false) }
@@ -80,7 +88,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             // ---- Languages ----
             SectionLabel("Languages")
             Spacer(Modifier.height(6.dp))
-            StickyCard(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
+            StickyCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
                 Column {
                     SettingRow(title = "I'm learning", value = s.learned.displayName) { pickLearned = true }
                     DashedRule()
@@ -90,36 +98,75 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             Spacer(Modifier.height(24.dp))
 
-            // ---- LLM ----
+            // ---- LLM provider ----
             SectionLabel("Translation model (LLM)")
             Spacer(Modifier.height(4.dp))
             Text(
-                if (s.hasBuildTimeKey) "A default API key is built into this app. Enter your own to override it."
-                else "No default key is built in. Enter an API key for an OpenAI-compatible endpoint.",
+                "Cloud uses an OpenAI-compatible API. On-device downloads a small model and runs entirely offline.",
                 style = MaterialTheme.typography.bodySmall,
                 color = c.mid,
             )
             Spacer(Modifier.height(10.dp))
-            SecretField(
-                label = "API key",
-                value = s.apiKeyOverride,
-                placeholder = if (s.hasBuildTimeKey) "Using built-in key" else "sk-…",
-                onCommit = viewModel::setApiKey,
+            StickySegmented(
+                options = LlmProvider.entries.map { it.label },
+                selectedIndex = LlmProvider.entries.indexOf(s.llmProvider),
+                onSelect = { viewModel.setProvider(LlmProvider.entries[it]) },
+                modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(10.dp))
-            CommitTextField(
-                label = "Base URL",
-                value = s.baseUrlOverride,
-                placeholder = BuildConfig.LLM_BASE_URL,
-                onCommit = viewModel::setBaseUrl,
-            )
-            Spacer(Modifier.height(10.dp))
-            CommitTextField(
-                label = "Model",
-                value = s.modelOverride,
-                placeholder = BuildConfig.LLM_MODEL,
-                onCommit = viewModel::setModel,
-            )
+
+            when (s.llmProvider) {
+                LlmProvider.CLOUD -> {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (s.hasBuildTimeKey) "A default API key is built into this app. Enter your own to override it."
+                        else "No default key is built in. Enter an API key for an OpenAI-compatible endpoint.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.mid,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    SecretField(
+                        label = "API key",
+                        value = s.apiKeyOverride,
+                        placeholder = if (s.hasBuildTimeKey) "Using built-in key" else "sk-…",
+                        onCommit = viewModel::setApiKey,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    CommitTextField(
+                        label = "Base URL",
+                        value = s.baseUrlOverride,
+                        placeholder = BuildConfig.LLM_BASE_URL,
+                        onCommit = viewModel::setBaseUrl,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    CommitTextField(
+                        label = "Model",
+                        value = s.modelOverride,
+                        placeholder = BuildConfig.LLM_MODEL,
+                        onCommit = viewModel::setModel,
+                    )
+                }
+
+                LlmProvider.LOCAL -> {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Device RAM ~${ui.deviceRamMb} MB · ${ui.freeStorageLabel}. Models stay in app storage.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.mid,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    ui.localModels.forEach { row ->
+                        LocalModelCard(
+                            row = row,
+                            download = ui.download,
+                            onSelect = { viewModel.selectLocalModel(row.spec.id) },
+                            onDownload = { viewModel.downloadModel(row.spec) },
+                            onCancel = viewModel::cancelDownload,
+                            onDelete = { viewModel.deleteModel(row.spec) },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -194,6 +241,107 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     if (pickExplanation) {
         LanguagePicker(title = "Explain in", selected = s.explanation, onDismiss = { pickExplanation = false }) {
             viewModel.setExplanation(it); pickExplanation = false
+        }
+    }
+}
+
+@Composable
+private fun LocalModelCard(
+    row: LocalModelRow,
+    download: ModelDownloadState,
+    onSelect: () -> Unit,
+    onDownload: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val c = MaterialTheme.sticky
+    val spec = row.spec
+    val downloadingThis = when (download) {
+        is ModelDownloadState.Downloading -> download.modelId == spec.id
+        is ModelDownloadState.Verifying -> download.modelId == spec.id
+        else -> false
+    }
+    val failedThis = (download as? ModelDownloadState.Failed)?.takeIf { it.modelId == spec.id }
+
+    StickyCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+        Column {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = row.downloaded, onClick = onSelect),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = row.selected && row.downloaded,
+                    onClick = if (row.downloaded) onSelect else null,
+                    enabled = row.downloaded,
+                    colors = stickyRadioColors(),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(spec.displayName, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "${spec.sizeLabel} · ${spec.quant}" + if (!row.ramOk) " · needs ~${spec.minRamMb / 1024} GB RAM" else "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (row.ramOk) c.mid else c.danger,
+                    )
+                    Text(spec.description, style = MaterialTheme.typography.bodySmall, color = c.mid)
+                }
+            }
+
+            when {
+                downloadingThis && download is ModelDownloadState.Downloading -> {
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { download.progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = c.ink,
+                        trackColor = c.fill,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${(download.progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StickyTextButton("Cancel", onClick = onCancel)
+                    }
+                }
+
+                downloadingThis && download is ModelDownloadState.Verifying -> {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = c.ink)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Verifying checksum…", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                failedThis != null -> {
+                    Spacer(Modifier.height(6.dp))
+                    Text(failedThis.message, style = MaterialTheme.typography.labelMedium, color = c.danger)
+                    Spacer(Modifier.height(4.dp))
+                    StickyTextButton("Retry download", onClick = onDownload)
+                }
+
+                row.downloaded -> {
+                    Spacer(Modifier.height(4.dp))
+                    Row {
+                        if (row.selected) {
+                            Text("Active", style = MaterialTheme.typography.labelMedium, color = c.ink, modifier = Modifier.weight(1f))
+                        } else {
+                            StickyTextButton("Use", onClick = onSelect)
+                            Spacer(Modifier.weight(1f))
+                        }
+                        StickyTextButton("Delete", onClick = onDelete)
+                    }
+                }
+
+                else -> {
+                    Spacer(Modifier.height(4.dp))
+                    StickyTextButton("Download ${spec.sizeLabel}", onClick = onDownload)
+                }
+            }
         }
     }
 }
