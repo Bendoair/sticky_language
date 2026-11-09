@@ -48,14 +48,8 @@ object LlmSchemas {
         "words" to arr(wordDetail, "One entry per requested word, in the same order."),
     )
 
-    val sentencePair: JsonObject = obj(
-        "text" to str("The sentence exactly as in the source text."),
-        "translation" to str("Natural translation of this sentence."),
-    )
-
-    val translation: JsonObject = obj(
-        "translation" to str("Natural, context-aware translation of the whole text."),
-        "sentences" to arr(sentencePair, "The source text split into sentences, each with its translation."),
+    val sentenceTranslation: JsonObject = obj(
+        "translation" to str("Natural, context-aware translation of the text."),
     )
 
     val chunk: JsonObject = obj(

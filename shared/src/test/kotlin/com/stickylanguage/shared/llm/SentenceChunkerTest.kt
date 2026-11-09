@@ -2,8 +2,7 @@ package com.stickylanguage.shared.llm
 
 import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.SentencePair
-import com.stickylanguage.shared.model.Token
-import com.stickylanguage.shared.model.TranslationResult
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,23 +22,15 @@ class SentenceChunkerTest {
     }
 
     @Test
-    fun mergeTranslations_offsets_sentence_index() {
-        val a = TranslationResult(
-            translation = "A",
-            tokens = listOf(Token(surface = "가", sentenceIndex = 0)),
-            sentences = listOf(SentencePair("가.", "A.")),
-            sourceText = "가.",
-        )
-        val b = TranslationResult(
-            translation = "B",
-            tokens = listOf(Token(surface = "나", sentenceIndex = 0)),
-            sentences = listOf(SentencePair("나.", "B.")),
-            sourceText = "나.",
-        )
-        val merged = SentenceChunker.mergeTranslations("가. 나.", Language.KOREAN, Language.ENGLISH, listOf(a, b))
-        assertEquals("A B", merged.translation)
-        assertEquals(2, merged.sentences.size)
-        assertEquals(0, merged.tokens[0].sentenceIndex)
-        assertEquals(1, merged.tokens[1].sentenceIndex)
+    fun translateEachSentence_makes_one_call_per_sentence_and_keeps_pairs_in_order() = runTest {
+        val calls = mutableListOf<String>()
+        val result = SentenceChunker.translateEachSentence("가. 나.", Language.KOREAN, Language.ENGLISH) { sentence ->
+            calls += sentence
+            "T($sentence)"
+        }
+        assertEquals(listOf("가.", "나."), calls)
+        assertEquals(listOf(SentencePair("가.", "T(가.)"), SentencePair("나.", "T(나.)")), result.sentences)
+        assertEquals("T(가.) T(나.)", result.translation)
+        assertEquals("가. 나.", result.sourceText)
     }
 }

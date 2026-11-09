@@ -11,6 +11,7 @@ import com.stickylanguage.shared.llm.WordDetailsBatch
 import com.stickylanguage.shared.llm.alignWordDetails
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
+import com.stickylanguage.shared.model.SentenceTranslation
 import com.stickylanguage.shared.model.TranslationResult
 import com.stickylanguage.shared.model.WordDetails
 import com.stickylanguage.shared.model.WordQuery
@@ -40,19 +41,13 @@ class LocalLlmBackend @Inject constructor(
 
     override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult {
         ensureReady()
-        val chunks = if (SentenceChunker.shouldChunk(source)) SentenceChunker.split(source) else listOf(source.trim())
-        val parts = chunks.map { chunk ->
+        return SentenceChunker.translateEachSentence(source, learned, explain) { sentence ->
             complete(
-                system = LlmPrompts.translateSystem(learned, explain),
-                user = LlmPrompts.translateUser(chunk, learned, explain),
-                schema = LlmSchemas.translation,
-                serializer = TranslationResult.serializer(),
-            ).copy(sourceText = chunk)
-        }
-        return if (parts.size == 1) {
-            parts.first().copy(sourceText = source)
-        } else {
-            SentenceChunker.mergeTranslations(source, learned, explain, parts)
+                system = LlmPrompts.translateSentenceSystem(learned, explain),
+                user = LlmPrompts.translateUser(sentence, learned, explain),
+                schema = LlmSchemas.sentenceTranslation,
+                serializer = SentenceTranslation.serializer(),
+            ).translation
         }
     }
 

@@ -7,7 +7,7 @@ import com.stickylanguage.shared.model.WordQuery
  * Versioned prompt templates. Keep all LLM wording here so the Android layer never builds prompts.
  */
 object LlmPrompts {
-    const val VERSION = 2
+    const val VERSION = 3
 
     private fun systemBase(learned: Language, explain: Language) = """
         You are Sticky Language, a precise language tutor.
@@ -20,10 +20,10 @@ object LlmPrompts {
         - The input may come from OCR and contain small recognition errors; interpret it charitably but do not invent content.
     """.trimIndent()
 
-    fun translateSystem(learned: Language, explain: Language): String = systemBase(learned, explain) + "\n" + """
+    /** The app splits the sentences, so the model only writes the translation. */
+    fun translateSentenceSystem(learned: Language, explain: Language): String = systemBase(learned, explain) + "\n" + """
         Task: translate the text.
-        - "translation": a natural, context-aware translation of the whole text.
-        - "sentences": split the text into sentences, each with its own translation.
+        - "translation": a natural, context-aware translation of the text.
     """.trimIndent()
 
     fun wordLookupSystem(learned: Language, explain: Language): String = systemBase(learned, explain) + "\n" + """

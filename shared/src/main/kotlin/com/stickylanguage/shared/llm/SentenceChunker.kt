@@ -4,12 +4,11 @@ import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.SentenceBreakdown
 import com.stickylanguage.shared.model.SentencePair
-import com.stickylanguage.shared.model.Token
 import com.stickylanguage.shared.model.TranslationResult
 
 /**
- * Splits OCR / typed source into sentence-sized chunks for local models that cannot
- * reliably emit a huge structured JSON blob in one shot.
+ * Splits OCR / typed source into sentence-sized chunks. Translation sends one LLM call per
+ * chunk; on-device breakdowns do too, as local models can't reliably emit a huge JSON blob.
  */
 object SentenceChunker {
     private val splitter = Regex("""(?<=[.!?。！？…])\s+|\n+""")
@@ -27,31 +26,20 @@ object SentenceChunker {
         return parts.size > 1 || text.length > charThreshold
     }
 
-    fun mergeTranslations(
+    /** Translates [source] one sentence at a time, in order, pairing each result with its sentence. */
+    suspend fun translateEachSentence(
         source: String,
         learned: Language,
         explain: Language,
-        parts: List<TranslationResult>,
+        translateSentence: suspend (String) -> String,
     ): TranslationResult {
-        val sentences = mutableListOf<SentencePair>()
-        val tokens = mutableListOf<Token>()
-        val translationParts = mutableListOf<String>()
-        var sentenceOffset = 0
-        for (part in parts) {
-            translationParts += part.translation
-            for (s in part.sentences) sentences += s
-            for (t in part.tokens) tokens += t.copy(sentenceIndex = t.sentenceIndex + sentenceOffset)
-            sentenceOffset += part.sentences.size.coerceAtLeast(1)
-        }
+        val sentences = split(source).map { SentencePair(text = it, translation = translateSentence(it)) }
         return TranslationResult(
             sourceLanguage = learned.code,
             explanationLanguage = explain.code,
             sourceText = source,
-            translation = translationParts.joinToString(" "),
-            tokens = tokens,
-            sentences = sentences.ifEmpty {
-                parts.map { SentencePair(text = it.sourceText, translation = it.translation) }
-            },
+            translation = sentences.joinToString(" ") { it.translation },
+            sentences = sentences,
         )
     }
 

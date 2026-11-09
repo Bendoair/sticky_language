@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Structured response of the "translate" LLM call. Field names are the wire format
- * (snake_case) so the same classes serve as DTOs and as app models.
- * The LLM doesn't return [tokens]: they are split on the device after the call.
+ * Result of translating a text, assembled by the app from per-sentence LLM calls.
+ * [tokens] are split on the device afterwards.
  */
 @Serializable
 data class TranslationResult(
@@ -21,6 +20,12 @@ data class TranslationResult(
         sentences.getOrNull(token.sentenceIndex)
             ?: sentences.firstOrNull { it.text.contains(token.surface) }
 }
+
+/** LLM response for one sentence. The app already has the source, so only the translation is generated. */
+@Serializable
+data class SentenceTranslation(
+    val translation: String,
+)
 
 /** One word to look up, with the sentence that gives it context. */
 data class WordQuery(

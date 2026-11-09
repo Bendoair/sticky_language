@@ -2,7 +2,7 @@ package com.stickylanguage.shared.llm
 
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
-import com.stickylanguage.shared.model.TranslationResult
+import com.stickylanguage.shared.model.SentenceTranslation
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -35,19 +35,19 @@ class LocalLlmHostSmokeTest {
         val source = "안녕하세요"
         val learned = Language.KOREAN
         val explain = Language.ENGLISH
-        val system = LlmPrompts.translateSystem(learned, explain) +
-            LlmPrompts.schemaFallbackSuffix(LlmSchemas.describe(LlmSchemas.translation))
+        val system = LlmPrompts.translateSentenceSystem(learned, explain) +
+            LlmPrompts.schemaFallbackSuffix(LlmSchemas.describe(LlmSchemas.sentenceTranslation))
         val user = LlmPrompts.translateUser(source, learned, explain)
 
         val raw = runCompletion(
             system = system,
             user = user,
-            schema = LlmSchemas.translation.toString(),
+            schema = LlmSchemas.sentenceTranslation.toString(),
             nPredict = 2048,
             label = "translate",
         )
         val result = try {
-            LlmJson.decode(TranslationResult.serializer(), raw)
+            LlmJson.decode(SentenceTranslation.serializer(), raw)
         } catch (e: Exception) {
             dumpFailure("translate", raw)
             throw AssertionError(
@@ -59,7 +59,7 @@ class LocalLlmHostSmokeTest {
         }
 
         assertTrue("translation blank: $raw", result.translation.isNotBlank())
-        println("translate OK [${model().name}] → \"${result.translation}\" (${result.sentences.size} sentences)")
+        println("translate OK [${model().name}] → \"${result.translation}\"")
     }
 
     @Test

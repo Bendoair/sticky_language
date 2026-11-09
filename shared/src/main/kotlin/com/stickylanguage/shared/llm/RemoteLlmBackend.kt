@@ -2,6 +2,7 @@ package com.stickylanguage.shared.llm
 
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
+import com.stickylanguage.shared.model.SentenceTranslation
 import com.stickylanguage.shared.model.TranslationResult
 import com.stickylanguage.shared.model.WordDetails
 import com.stickylanguage.shared.model.WordQuery
@@ -42,16 +43,15 @@ class RemoteLlmBackend(
     }
 
     override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult =
-        complete(
-            schemaName = "sticky_translation",
-            schema = LlmSchemas.translation,
-            system = LlmPrompts.translateSystem(learned, explain),
-            user = LlmPrompts.translateUser(source, learned, explain),
-            serializer = TranslationResult.serializer(),
-            maxTokens = (source.length * 6 + 1024).coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
-        ).let { result ->
-            // Guarantee the source text is what the UI already shows.
-            result.copy(sourceText = source)
+        SentenceChunker.translateEachSentence(source, learned, explain) { sentence ->
+            complete(
+                schemaName = "sticky_sentence_translation",
+                schema = LlmSchemas.sentenceTranslation,
+                system = LlmPrompts.translateSentenceSystem(learned, explain),
+                user = LlmPrompts.translateUser(sentence, learned, explain),
+                serializer = SentenceTranslation.serializer(),
+                maxTokens = (sentence.length * 6 + 1024).coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
+            ).translation
         }
 
     override suspend fun breakdown(source: String, learned: Language, explain: Language): BreakdownResult =
