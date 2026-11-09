@@ -1,12 +1,13 @@
 package com.stickylanguage.shared.llm
 
 import com.stickylanguage.shared.model.Language
+import com.stickylanguage.shared.model.WordQuery
 
 /**
  * Versioned prompt templates. Keep all LLM wording here so the Android layer never builds prompts.
  */
 object LlmPrompts {
-    const val VERSION = 1
+    const val VERSION = 2
 
     private fun systemBase(learned: Language, explain: Language) = """
         You are Sticky Language, a precise language tutor.
@@ -20,14 +21,26 @@ object LlmPrompts {
     """.trimIndent()
 
     fun translateSystem(learned: Language, explain: Language): String = systemBase(learned, explain) + "\n" + """
-        Task: translate the text and tokenize it for tap-to-lookup.
+        Task: translate the text.
         - "translation": a natural, context-aware translation of the whole text.
         - "sentences": split the text into sentences, each with its own translation.
-        - "tokens": every meaningful word in reading order. "surface" must be the exact substring as it appears
-          (including attached particles / endings). Skip pure punctuation. For languages without spaces, tokenize into words.
-        - For each token give the dictionary form, reading (romanization) when the script is not Latin, part of speech,
+    """.trimIndent()
+
+    fun wordLookupSystem(learned: Language, explain: Language): String = systemBase(learned, explain) + "\n" + """
+        Task: explain each listed word as it is used in its sentence.
+        - Return one entry per listed word, in the same order. "surface" must be the word exactly as listed.
+        - For each word give the dictionary form, reading (romanization) when the script is not Latin, part of speech,
           1-3 meanings, a short grammar note about attached particles/conjugation, and a short example.
     """.trimIndent()
+
+    fun wordLookupUser(words: List<WordQuery>, learned: Language, explain: Language): String = buildString {
+        appendLine("Learned language: ${learned.englishName} (${learned.code})")
+        appendLine("Explanation language: ${explain.englishName} (${explain.code})")
+        appendLine("Words:")
+        words.forEachIndexed { i, word ->
+            appendLine("${i + 1}. Word: <<<${word.surface}>>> Sentence: <<<${word.sentence}>>>")
+        }
+    }.trimEnd()
 
     fun translateUser(source: String, learned: Language, explain: Language): String = """
         Learned language: ${learned.englishName} (${learned.code})

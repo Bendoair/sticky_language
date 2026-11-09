@@ -7,9 +7,13 @@ import com.stickylanguage.shared.llm.LlmJson
 import com.stickylanguage.shared.llm.LlmPrompts
 import com.stickylanguage.shared.llm.LlmSchemas
 import com.stickylanguage.shared.llm.SentenceChunker
+import com.stickylanguage.shared.llm.WordDetailsBatch
+import com.stickylanguage.shared.llm.alignWordDetails
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.TranslationResult
+import com.stickylanguage.shared.model.WordDetails
+import com.stickylanguage.shared.model.WordQuery
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +68,21 @@ class LocalLlmBackend @Inject constructor(
             )
         }
         return if (parts.size == 1) parts.first() else SentenceChunker.mergeBreakdowns(learned, explain, parts)
+    }
+
+    /** One word per call: small models can't reliably emit a large structured batch. */
+    override suspend fun lookupWords(queries: List<WordQuery>, learned: Language, explain: Language): List<WordDetails> {
+        ensureReady()
+        return queries.map { query ->
+            val single = listOf(query)
+            val response = complete(
+                system = LlmPrompts.wordLookupSystem(learned, explain),
+                user = LlmPrompts.wordLookupUser(single, learned, explain),
+                schema = LlmSchemas.wordDetails,
+                serializer = WordDetailsBatch.serializer(),
+            )
+            alignWordDetails(single, response.words).single()
+        }
     }
 
     private suspend fun ensureReady() {

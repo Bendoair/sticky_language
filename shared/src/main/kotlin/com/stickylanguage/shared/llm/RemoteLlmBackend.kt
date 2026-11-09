@@ -3,6 +3,8 @@ package com.stickylanguage.shared.llm
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.TranslationResult
+import com.stickylanguage.shared.model.WordDetails
+import com.stickylanguage.shared.model.WordQuery
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
@@ -46,6 +48,7 @@ class RemoteLlmBackend(
             system = LlmPrompts.translateSystem(learned, explain),
             user = LlmPrompts.translateUser(source, learned, explain),
             serializer = TranslationResult.serializer(),
+            maxTokens = (source.length * 6 + 1024).coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
         ).let { result ->
             // Guarantee the source text is what the UI already shows.
             result.copy(sourceText = source)
@@ -60,12 +63,26 @@ class RemoteLlmBackend(
             serializer = BreakdownResult.serializer(),
         )
 
+    override suspend fun lookupWords(queries: List<WordQuery>, learned: Language, explain: Language): List<WordDetails> =
+        queries.chunked(LOOKUP_BATCH_SIZE).flatMap { batch ->
+            val response = complete(
+                schemaName = "sticky_word_details",
+                schema = LlmSchemas.wordDetails,
+                system = LlmPrompts.wordLookupSystem(learned, explain),
+                user = LlmPrompts.wordLookupUser(batch, learned, explain),
+                serializer = WordDetailsBatch.serializer(),
+                maxTokens = (batch.size * 250 + 1024).coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
+            )
+            alignWordDetails(batch, response.words)
+        }
+
     private suspend fun <T> complete(
         schemaName: String,
         schema: JsonObject,
         system: String,
         user: String,
         serializer: KSerializer<T>,
+        maxTokens: Int? = null,
     ): T {
         val config = configProvider()
         if (!config.isConfigured) throw LlmException.NotConfigured()
@@ -88,6 +105,7 @@ class RemoteLlmBackend(
             val request = ChatCompletionRequest(
                 model = config.model,
                 messages = messages,
+                maxTokens = maxTokens,
                 responseFormat = if (useSchema) ResponseFormat.schema(schemaName, schema) else ResponseFormat.JsonObject,
             )
 
@@ -115,12 +133,15 @@ class RemoteLlmBackend(
                 throw LlmException.Http(status, body)
             }
 
-            val content = try {
-                response.body<ChatCompletionResponse>().choices.firstOrNull()?.message
+            val choice = try {
+                response.body<ChatCompletionResponse>().choices.firstOrNull()
             } catch (e: Exception) {
                 throw LlmException.InvalidResponse("could not read completion envelope", e)
             }
+            val content = choice?.message
             if (content?.refusal != null) throw LlmException.InvalidResponse("refusal: ${content.refusal}")
+            // Repeating an identical request would only be cut off again.
+            if (choice?.finishReason == "length") throw LlmException.InvalidResponse("the output was cut off at its length limit")
             val text = content?.content ?: throw LlmException.InvalidResponse("empty content")
 
             // Layer 3: strict client-side parsing with one retry.
@@ -137,6 +158,12 @@ class RemoteLlmBackend(
     private fun looksLikeSchemaUnsupported(body: String): Boolean {
         val b = body.lowercase()
         return "response_format" in b || "json_schema" in b || "structured" in b || "schema" in b
+    }
+
+    private companion object {
+        const val MIN_OUTPUT_TOKENS = 2048
+        const val MAX_OUTPUT_TOKENS = 8192
+        const val LOOKUP_BATCH_SIZE = 20
     }
 }
 

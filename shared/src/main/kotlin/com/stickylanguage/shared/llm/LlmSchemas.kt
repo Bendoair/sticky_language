@@ -19,11 +19,6 @@ object LlmSchemas {
         put("description", description)
     }
 
-    private fun int(description: String) = buildJsonObject {
-        put("type", "integer")
-        put("description", description)
-    }
-
     private fun arr(items: JsonObject, description: String) = buildJsonObject {
         put("type", "array")
         put("description", description)
@@ -39,15 +34,18 @@ object LlmSchemas {
 
     private fun stringArray(description: String) = arr(buildJsonObject { put("type", "string") }, description)
 
-    val token: JsonObject = obj(
-        "surface" to str("The token exactly as it appears in the source text, including attached particles or endings."),
+    private val wordDetail: JsonObject = obj(
+        "surface" to str("The word exactly as listed in the request."),
         "lemma" to str("Dictionary / base form of the word."),
         "reading" to str("Romanization or reading. Empty string if not applicable."),
         "pos" to str("Part of speech, plus attached particle/ending if any, e.g. 'noun + topic particle'."),
         "meanings" to stringArray("One to three concise meanings in the explanation language."),
         "grammar" to str("One or two sentences explaining the grammar attached to this token (particle, conjugation, honorific). Empty if none."),
         "example" to str("A short example sentence in the learned language followed by ' — ' and its translation. Empty string if none."),
-        "sentence_index" to int("Zero-based index of the sentence this token belongs to."),
+    )
+
+    val wordDetails: JsonObject = obj(
+        "words" to arr(wordDetail, "One entry per requested word, in the same order."),
     )
 
     val sentencePair: JsonObject = obj(
@@ -56,11 +54,7 @@ object LlmSchemas {
     )
 
     val translation: JsonObject = obj(
-        "source_language" to str("ISO 639-1 code of the source language."),
-        "explanation_language" to str("ISO 639-1 code of the explanation language."),
-        "source_text" to str("The source text, unchanged."),
         "translation" to str("Natural, context-aware translation of the whole text."),
-        "tokens" to arr(token, "Every meaningful word/token of the source text in reading order. Skip punctuation."),
         "sentences" to arr(sentencePair, "The source text split into sentences, each with its translation."),
     )
 

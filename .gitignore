@@ -45,3 +45,5 @@ tools/local-llm-smoke/models/
 tools/local-llm-smoke/failures/
 tools/local-llm-smoke/last-run.log
 tools/local-llm-smoke/*.gguf
+
+CLAUDE.md

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -15,12 +16,14 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCard
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import com.stickylanguage.app.ui.components.ErrorBanner
 import com.stickylanguage.app.ui.components.InkRule
 import com.stickylanguage.app.ui.components.SectionLabel
 import com.stickylanguage.app.ui.components.StickyButton
@@ -86,6 +90,9 @@ fun WordSheet(
     lookup: WordLookup,
     onDismiss: () -> Unit,
     onAddToAnki: () -> Unit,
+    loading: Boolean = false,
+    error: String? = null,
+    onRetry: (() -> Unit)? = null,
 ) {
     val c = MaterialTheme.sticky
     StickySheet(onDismiss = onDismiss) {
@@ -109,10 +116,18 @@ fun WordSheet(
         Spacer(Modifier.height(16.dp))
         SectionLabel("Meaning")
         Spacer(Modifier.height(4.dp))
-        if (lookup.meanings.isEmpty()) {
-            Text("—", style = MaterialTheme.typography.bodyLarge)
-        } else {
-            lookup.meanings.forEachIndexed { i, m ->
+        when {
+            loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = c.ink)
+                Spacer(Modifier.width(12.dp))
+                Text("Looking up…", style = MaterialTheme.typography.bodyMedium)
+            }
+
+            error != null -> ErrorBanner(error, onRetry = onRetry)
+
+            lookup.meanings.isEmpty() -> Text("—", style = MaterialTheme.typography.bodyLarge)
+
+            else -> lookup.meanings.forEachIndexed { i, m ->
                 Text("${i + 1}. $m", style = MaterialTheme.typography.bodyLarge)
             }
         }
@@ -144,7 +159,7 @@ fun WordSheet(
         }
 
         Spacer(Modifier.height(24.dp))
-        StickyButton(primary = true, onClick = onAddToAnki, modifier = Modifier.fillMaxWidth()) {
+        StickyButton(primary = true, enabled = !loading && error == null, onClick = onAddToAnki, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.AddCard, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Add to Anki")

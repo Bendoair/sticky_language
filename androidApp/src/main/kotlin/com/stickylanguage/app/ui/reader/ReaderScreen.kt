@@ -107,10 +107,10 @@ fun ReaderScreen(
                                 onClick = { if (ui.selected.isEmpty()) viewModel.selectAll() else viewModel.clearSelection() },
                             )
                             Spacer(Modifier.weight(1f))
-                            StickyButton(primary = true, enabled = ui.selected.isNotEmpty(), onClick = viewModel::exportSelected, compact = true) {
+                            StickyButton(primary = true, enabled = ui.selected.isNotEmpty() && !ui.exporting, onClick = viewModel::exportSelected, compact = true) {
                                 Icon(Icons.Outlined.AddCard, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Export ${ui.selected.size} to Anki")
+                                Text(if (ui.exporting) "Loading words…" else "Export ${ui.selected.size} to Anki")
                             }
                         }
                     }
@@ -255,7 +255,16 @@ fun ReaderScreen(
     }
 
     when (val sheet = ui.sheet) {
-        is ReaderSheet.Word -> WordSheet(lookup = sheet.lookup, onDismiss = viewModel::dismissSheet, onAddToAnki = viewModel::openAnkiAdd)
+        is ReaderSheet.Word -> ui.wordLookup(sheet.tokenIndex)?.let { lookup ->
+            WordSheet(
+                lookup = lookup,
+                onDismiss = viewModel::dismissSheet,
+                onAddToAnki = viewModel::openAnkiAdd,
+                loading = s.lookingUpWord == sheet.tokenIndex,
+                error = s.wordLookupError,
+                onRetry = { viewModel.retryWord(sheet.tokenIndex) },
+            )
+        }
         is ReaderSheet.AnkiAdd -> AnkiNoteSheet(
             draft = sheet.draft,
             defaults = ui.settings.anki,

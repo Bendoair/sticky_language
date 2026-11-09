@@ -59,11 +59,7 @@ class LocalLlmHostSmokeTest {
         }
 
         assertTrue("translation blank: $raw", result.translation.isNotBlank())
-        assertTrue("expected at least one token, got ${result.tokens.size}: $raw", result.tokens.isNotEmpty())
-        println(
-            "translate OK [${model().name}] → \"${result.translation}\" " +
-                "(${result.tokens.size} tokens, ${result.sentences.size} sentences)",
-        )
+        println("translate OK [${model().name}] → \"${result.translation}\" (${result.sentences.size} sentences)")
     }
 
     @Test

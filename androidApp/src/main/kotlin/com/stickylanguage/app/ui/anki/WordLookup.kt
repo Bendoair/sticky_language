@@ -32,8 +32,7 @@ data class WordLookup(
 
     companion object {
         fun fromToken(token: Token, translation: TranslationResult?, languageCode: String): WordLookup {
-            val pair = translation?.sentences?.getOrNull(token.sentenceIndex)
-                ?: translation?.sentences?.firstOrNull { it.text.contains(token.surface) }
+            val pair = translation?.sentenceOf(token)
             return WordLookup(
                 surface = token.surface,
                 lemma = token.lemma,

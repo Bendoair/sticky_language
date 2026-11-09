@@ -8,6 +8,8 @@ import com.stickylanguage.shared.llm.RemoteLlmBackend
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.TranslationResult
+import com.stickylanguage.shared.model.WordDetails
+import com.stickylanguage.shared.model.WordQuery
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,4 +34,7 @@ class RoutingLlmBackend @Inject constructor(
 
     override suspend fun breakdown(source: String, learned: Language, explain: Language): BreakdownResult =
         active().breakdown(source, learned, explain)
+
+    override suspend fun lookupWords(queries: List<WordQuery>, learned: Language, explain: Language): List<WordDetails> =
+        active().lookupWords(queries, learned, explain)
 }

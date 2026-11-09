@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * Structured response of the "translate" LLM call. Field names are the wire format
  * (snake_case) so the same classes serve as DTOs and as app models.
+ * The LLM doesn't return [tokens]: they are split on the device after the call.
  */
 @Serializable
 data class TranslationResult(
@@ -15,6 +16,28 @@ data class TranslationResult(
     val translation: String,
     val tokens: List<Token> = emptyList(),
     val sentences: List<SentencePair> = emptyList(),
+) {
+    fun sentenceOf(token: Token): SentencePair? =
+        sentences.getOrNull(token.sentenceIndex)
+            ?: sentences.firstOrNull { it.text.contains(token.surface) }
+}
+
+/** One word to look up, with the sentence that gives it context. */
+data class WordQuery(
+    val surface: String,
+    val sentence: String,
+)
+
+/** Word-card details, fetched only when a word is opened or exported. */
+@Serializable
+data class WordDetails(
+    val surface: String = "",
+    val lemma: String = "",
+    val reading: String = "",
+    val pos: String = "",
+    val meanings: List<String> = emptyList(),
+    val grammar: String = "",
+    val example: String = "",
 )
 
 @Serializable
@@ -35,6 +58,17 @@ data class Token(
     @SerialName("sentence_index") val sentenceIndex: Int = 0,
 ) {
     val primaryMeaning: String get() = meanings.firstOrNull().orEmpty()
+
+    val hasDetails: Boolean get() = meanings.isNotEmpty()
+
+    fun withDetails(details: WordDetails): Token = copy(
+        lemma = details.lemma,
+        reading = details.reading,
+        pos = details.pos,
+        meanings = details.meanings,
+        grammar = details.grammar,
+        example = details.example,
+    )
 }
 
 @Serializable

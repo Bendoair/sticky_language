@@ -11,6 +11,7 @@ import com.stickylanguage.app.ui.anki.WordLookup
 import com.stickylanguage.shared.anki.ExportNote
 import com.stickylanguage.shared.model.Token
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,7 +24,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface ReaderSheet {
-    data class Word(val lookup: WordLookup) : ReaderSheet
+    /** Holds an index, not a snapshot, so the open card updates when its details arrive. */
+    data class Word(val tokenIndex: Int) : ReaderSheet
     data class AnkiAdd(val draft: ExportNote) : ReaderSheet
 }
 
@@ -40,7 +42,14 @@ data class ReaderUi(
     val multiSelect: Boolean = false,
     val selected: Set<Int> = emptySet(),
     val sheet: ReaderSheet? = null,
-)
+    val exporting: Boolean = false,
+) {
+    fun wordLookup(tokenIndex: Int): WordLookup? {
+        val translation = session.translation ?: return null
+        val token = translation.tokens.getOrNull(tokenIndex) ?: return null
+        return WordLookup.fromToken(token, translation, settings.learned.code)
+    }
+}
 
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
@@ -54,6 +63,7 @@ class ReaderViewModel @Inject constructor(
         val multiSelect: Boolean = false,
         val selected: Set<Int> = emptySet(),
         val sheet: ReaderSheet? = null,
+        val exporting: Boolean = false,
     )
 
     // Default to Highlight; start in Edit only when there is nothing to highlight yet (Home → Type).
@@ -75,6 +85,7 @@ class ReaderViewModel @Inject constructor(
             multiSelect = l.multiSelect,
             selected = l.selected,
             sheet = l.sheet,
+            exporting = l.exporting,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReaderUi())
 
@@ -112,17 +123,23 @@ class ReaderViewModel @Inject constructor(
             local.update { l -> l.copy(selected = if (index in l.selected) l.selected - index else l.selected + index) }
             return
         }
-        val token = st.session.translation?.tokens?.getOrNull(index) ?: return
-        val lookup = WordLookup.fromToken(token, st.session.translation, st.settings.learned.code)
-        local.update { it.copy(sheet = ReaderSheet.Word(lookup)) }
+        if (st.wordLookup(index) == null) return
+        session.requestWord(index)
+        local.update { it.copy(sheet = ReaderSheet.Word(index)) }
     }
+
+    fun retryWord(index: Int) = session.requestWord(index)
 
     fun openAnkiAdd() {
         val word = (local.value.sheet as? ReaderSheet.Word) ?: return
-        local.update { it.copy(sheet = ReaderSheet.AnkiAdd(word.lookup.toExportNote())) }
+        val lookup = ui.value.wordLookup(word.tokenIndex) ?: return
+        local.update { it.copy(sheet = ReaderSheet.AnkiAdd(lookup.toExportNote())) }
     }
 
-    fun dismissSheet() = local.update { it.copy(sheet = null) }
+    fun dismissSheet() {
+        session.cancelWordLookup()
+        local.update { it.copy(sheet = null) }
+    }
 
     fun confirmAnkiAdd(note: ExportNote) {
         viewModelScope.launch {
@@ -145,14 +162,27 @@ class ReaderViewModel @Inject constructor(
 
     fun clearSelection() = local.update { it.copy(selected = emptySet()) }
 
-    /** "Export to Anki" with default settings: pushes every selected token to the heap. */
+    /** "Export to Anki" with default settings: fetches missing details, then pushes every selected token to the heap. */
     fun exportSelected() {
         val st = ui.value
-        val tokens = st.session.translation?.tokens ?: return
-        val notes = st.selected.sorted().mapNotNull { i -> tokens.getOrNull(i) }
-            .map { t -> WordLookup.fromToken(t, st.session.translation, st.settings.learned.code).toExportNote() }
-        if (notes.isEmpty()) return
+        val indices = st.selected.sorted()
+        if (indices.isEmpty() || st.exporting) return
         viewModelScope.launch {
+            local.update { it.copy(exporting = true) }
+            try {
+                session.fetchMissingWordDetails(indices)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _messages.send("Couldn't load word details: ${e.message}")
+                return@launch
+            } finally {
+                local.update { it.copy(exporting = false) }
+            }
+            // The text may have been re-translated during the fetch, which invalidates the indices.
+            val current = ui.value
+            if (current.session.translatedSource != st.session.translatedSource) return@launch
+            val notes = indices.mapNotNull { i -> current.wordLookup(i)?.toExportNote() }
             exportRepo.addAll(notes)
             local.update { it.copy(selected = emptySet(), multiSelect = false) }
             _messages.send("${notes.size} words added to export")

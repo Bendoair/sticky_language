@@ -7,8 +7,10 @@ import com.stickylanguage.app.llm.local.LocalLlmBackend
 import com.stickylanguage.app.ocr.OcrService
 import com.stickylanguage.shared.llm.LlmBackend
 import com.stickylanguage.shared.llm.LlmException
+import com.stickylanguage.shared.llm.WordSegmenter
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.TranslationResult
+import com.stickylanguage.shared.model.WordQuery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +37,10 @@ data class SessionState(
     val translating: Boolean = false,
     val translateError: String? = null,
     val localPhase: LocalEnginePhase = LocalEnginePhase.Idle,
+
+    /** Index in `translation.tokens` of the word whose details are loading. */
+    val lookingUpWord: Int? = null,
+    val wordLookupError: String? = null,
 
     val breakdown: BreakdownResult? = null,
     val breakdownSource: String? = null,
@@ -65,6 +71,7 @@ class SessionController @Inject constructor(
     private var ocrJob: Job? = null
     private var translateJob: Job? = null
     private var breakdownJob: Job? = null
+    private var wordJob: Job? = null
     private var phaseJob: Job? = null
 
     init {
@@ -113,11 +120,15 @@ class SessionController @Inject constructor(
         val source = _state.value.sourceText.trim()
         if (source.isBlank() || _state.value.translating) return
         translateJob?.cancel()
+        cancelWordLookup()
         _state.update { it.copy(translating = true, translateError = null) }
         translateJob = scope.launch {
             val s = settings.current()
             try {
-                val result = llm.translate(source, s.learned, s.explanation)
+                val translated = llm.translate(source, s.learned, s.explanation)
+                val result = translated.copy(
+                    tokens = WordSegmenter.tokenize(source, s.learned, translated.sentences.map { it.text }),
+                )
                 _state.update {
                     it.copy(
                         translation = result,
@@ -135,6 +146,54 @@ class SessionController @Inject constructor(
             } catch (e: Exception) {
                 _state.update { it.copy(translating = false, translateError = e.message ?: "Translation failed") }
             }
+        }
+    }
+
+    /** Word tap. Fetches details once; a word that already has them makes no call. */
+    fun requestWord(index: Int) {
+        val token = _state.value.translation?.tokens?.getOrNull(index) ?: return
+        if (token.hasDetails) return
+        cancelWordLookup()
+        _state.update { it.copy(lookingUpWord = index) }
+        wordJob = scope.launch {
+            try {
+                fetchMissingWordDetails(listOf(index))
+                _state.update { it.copy(lookingUpWord = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(lookingUpWord = null, wordLookupError = e.message ?: "Word lookup failed") }
+            }
+        }
+    }
+
+    fun cancelWordLookup() {
+        wordJob?.cancel()
+        wordJob = null
+        _state.update { it.copy(lookingUpWord = null, wordLookupError = null) }
+    }
+
+    /** Stores details on the tokens at [indices], skipping those already loaded. Throws on failure. */
+    suspend fun fetchMissingWordDetails(indices: Collection<Int>) {
+        val start = _state.value
+        val translation = start.translation ?: return
+        val missing = indices.filter { translation.tokens.getOrNull(it)?.hasDetails == false }
+        if (missing.isEmpty()) return
+        val queries = missing.map { i ->
+            val token = translation.tokens[i]
+            WordQuery(token.surface, translation.sentenceOf(token)?.text ?: translation.sourceText)
+        }
+        val s = settings.current()
+        val details = missing.zip(llm.lookupWords(queries, s.learned, s.explanation)).toMap()
+        _state.update { current ->
+            // Indices only apply to the translation they were requested for.
+            val latest = current.translation
+            if (latest == null || current.translatedSource != start.translatedSource) return@update current
+            current.copy(
+                translation = latest.copy(
+                    tokens = latest.tokens.mapIndexed { i, token -> details[i]?.let(token::withDetails) ?: token },
+                ),
+            )
         }
     }
 
@@ -166,6 +225,6 @@ class SessionController @Inject constructor(
     }
 
     private fun cancelAll() {
-        ocrJob?.cancel(); translateJob?.cancel(); breakdownJob?.cancel()
+        ocrJob?.cancel(); translateJob?.cancel(); breakdownJob?.cancel(); wordJob?.cancel()
     }
 }

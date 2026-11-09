@@ -15,6 +15,7 @@ internal data class ChatCompletionRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val temperature: Double = 0.2,
+    @SerialName("max_tokens") val maxTokens: Int? = null,
     @SerialName("response_format") val responseFormat: ResponseFormat? = null,
 )
 
