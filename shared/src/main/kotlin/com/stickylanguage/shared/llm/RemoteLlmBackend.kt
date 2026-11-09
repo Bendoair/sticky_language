@@ -43,12 +43,12 @@ class RemoteLlmBackend(
     }
 
     override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult =
-        SentenceChunker.translateEachSentence(source, learned, explain) { sentence ->
+        SentenceChunker.translateEachSentence(source, learned, explain, CONTEXT_SENTENCES, CONCURRENT_REQUESTS) { sentence, previous ->
             complete(
                 schemaName = "sticky_sentence_translation",
                 schema = LlmSchemas.sentenceTranslation,
                 system = LlmPrompts.translateSentenceSystem(learned, explain),
-                user = LlmPrompts.translateUser(sentence, learned, explain),
+                user = LlmPrompts.translateSentenceUser(sentence, previous, learned, explain),
                 serializer = SentenceTranslation.serializer(),
                 maxTokens = (sentence.length * 6 + 1024).coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS),
             ).translation
@@ -164,6 +164,8 @@ class RemoteLlmBackend(
         const val MIN_OUTPUT_TOKENS = 2048
         const val MAX_OUTPUT_TOKENS = 8192
         const val LOOKUP_BATCH_SIZE = 20
+        const val CONTEXT_SENTENCES = 2
+        const val CONCURRENT_REQUESTS = 3
     }
 }
 

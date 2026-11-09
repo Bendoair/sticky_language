@@ -5,6 +5,11 @@ import com.stickylanguage.shared.model.Language
 import com.stickylanguage.shared.model.SentenceBreakdown
 import com.stickylanguage.shared.model.SentencePair
 import com.stickylanguage.shared.model.TranslationResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * Splits OCR / typed source into sentence-sized chunks. Translation sends one LLM call per
@@ -13,7 +18,7 @@ import com.stickylanguage.shared.model.TranslationResult
 object SentenceChunker {
     private val splitter = Regex("""(?<=[.!?。！？…])\s+|\n+""")
 
-    /** The delimiters around the source in [LlmPrompts.translateUser], which models sometimes copy. */
+    /** The delimiters around the text in the translate prompts, which models sometimes copy. */
     private val promptMarkers = Regex("<<<|>>>")
 
     fun split(text: String): List<String> {
@@ -29,14 +34,31 @@ object SentenceChunker {
         return parts.size > 1 || text.length > charThreshold
     }
 
-    /** Translates [source] one sentence at a time, in order, pairing each result with its sentence. */
+    /**
+     * Translates [source] one sentence at a time, in order, pairing each result with its sentence.
+     * [translateSentence] receives the sentence and up to [contextSentences] sentences before it,
+     * with at most [concurrency] calls running at once. If one call fails, the others are cancelled.
+     */
     suspend fun translateEachSentence(
         source: String,
         learned: Language,
         explain: Language,
-        translateSentence: suspend (String) -> String,
+        contextSentences: Int,
+        concurrency: Int,
+        translateSentence: suspend (sentence: String, previous: List<String>) -> String,
     ): TranslationResult {
-        val sentences = split(source).map { SentencePair(text = it, translation = translated(it, translateSentence)) }
+        val parts = split(source)
+        val permits = Semaphore(concurrency)
+        val sentences = coroutineScope {
+            parts.mapIndexed { index, sentence ->
+                val previous = parts.subList(0, index).filter(::hasLetters).takeLast(contextSentences)
+                async {
+                    permits.withPermit {
+                        SentencePair(text = sentence, translation = translated(sentence, previous, translateSentence))
+                    }
+                }
+            }.awaitAll()
+        }
         return TranslationResult(
             sourceLanguage = learned.code,
             explanationLanguage = explain.code,
@@ -47,9 +69,15 @@ object SentenceChunker {
     }
 
     /** Punctuation-only pieces such as "..." are kept as they are; models tend to echo the prompt for them. */
-    private suspend fun translated(sentence: String, translateSentence: suspend (String) -> String): String =
-        if (sentence.none { it.isLetterOrDigit() }) sentence
-        else translateSentence(sentence).replace(promptMarkers, "").trim()
+    private suspend fun translated(
+        sentence: String,
+        previous: List<String>,
+        translateSentence: suspend (String, List<String>) -> String,
+    ): String =
+        if (!hasLetters(sentence)) sentence
+        else translateSentence(sentence, previous).replace(promptMarkers, "").trim()
+
+    private fun hasLetters(text: String): Boolean = text.any { it.isLetterOrDigit() }
 
     fun mergeBreakdowns(
         learned: Language,

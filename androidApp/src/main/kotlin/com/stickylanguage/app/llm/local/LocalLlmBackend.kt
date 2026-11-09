@@ -41,10 +41,11 @@ class LocalLlmBackend @Inject constructor(
 
     override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult {
         ensureReady()
-        return SentenceChunker.translateEachSentence(source, learned, explain) { sentence ->
+        // The engine runs one generation at a time; less context means less prompt to read on the CPU.
+        return SentenceChunker.translateEachSentence(source, learned, explain, contextSentences = 1, concurrency = 1) { sentence, previous ->
             complete(
                 system = LlmPrompts.translateSentenceSystem(learned, explain),
-                user = LlmPrompts.translateUser(sentence, learned, explain),
+                user = LlmPrompts.translateSentenceUser(sentence, previous, learned, explain),
                 schema = LlmSchemas.sentenceTranslation,
                 serializer = SentenceTranslation.serializer(),
             ).translation

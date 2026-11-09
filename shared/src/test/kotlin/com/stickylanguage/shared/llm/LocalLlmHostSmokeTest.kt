@@ -37,7 +37,7 @@ class LocalLlmHostSmokeTest {
         val explain = Language.ENGLISH
         val system = LlmPrompts.translateSentenceSystem(learned, explain) +
             LlmPrompts.schemaFallbackSuffix(LlmSchemas.describe(LlmSchemas.sentenceTranslation))
-        val user = LlmPrompts.translateUser(source, learned, explain)
+        val user = LlmPrompts.translateSentenceUser(source, emptyList(), learned, explain)
 
         val raw = runCompletion(
             system = system,
