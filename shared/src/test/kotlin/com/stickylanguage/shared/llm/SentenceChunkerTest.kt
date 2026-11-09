@@ -33,4 +33,21 @@ class SentenceChunkerTest {
         assertEquals("T(가.) T(나.)", result.translation)
         assertEquals("가. 나.", result.sourceText)
     }
+
+    @Test
+    fun punctuation_only_pieces_skip_the_model() = runTest {
+        val calls = mutableListOf<String>()
+        val result = SentenceChunker.translateEachSentence("가. ... 나.", Language.KOREAN, Language.ENGLISH) { sentence ->
+            calls += sentence
+            "T"
+        }
+        assertEquals(listOf("가.", "나."), calls)
+        assertEquals("T ... T", result.translation)
+    }
+
+    @Test
+    fun echoed_prompt_markers_are_removed() = runTest {
+        val result = SentenceChunker.translateEachSentence("가.", Language.KOREAN, Language.ENGLISH) { "<<<\nHello.\n>>>" }
+        assertEquals("Hello.", result.translation)
+    }
 }

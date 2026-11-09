@@ -64,7 +64,7 @@ class LlamaCppEngine @Inject constructor() {
     ): String = withContext(Dispatchers.IO) {
         mutex.withLock {
             val current = loaded.get() ?: error("No local model loaded")
-            current.session.reset()
+            // No session.reset() here: chat() reuses whatever start of the prompt is unchanged.
             val grammar = Grammar.jsonSchema(jsonSchema)
             val pieces = current.session.chat(
                 messages = listOf(
@@ -75,6 +75,15 @@ class LlamaCppEngine @Inject constructor() {
                 grammar = grammar,
                 temperature = 0.2f,
             ).toList()
+            current.session.lastStats?.let { stats ->
+                Log.d(
+                    TAG,
+                    "stats prompt=${stats.promptTokens} cached=${stats.cachedPromptTokens} " +
+                        "promptMs=${stats.promptMillis} generated=${stats.generatedTokens} " +
+                        "generationMs=${stats.generationMillis} stop=${stats.stopReason} " +
+                        "contextUsed=${current.session.usedTokens()}/$CONTEXT_SIZE",
+                )
+            }
             pieces.joinToString("")
         }
     }

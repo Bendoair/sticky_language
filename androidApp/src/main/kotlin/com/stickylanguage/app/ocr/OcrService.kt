@@ -11,6 +11,7 @@ import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.stickylanguage.shared.model.Script
+import com.stickylanguage.shared.ocr.OcrTextJoiner
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -37,9 +38,6 @@ class OcrService @Inject constructor(@ApplicationContext private val context: Co
     suspend fun recognize(uri: Uri, script: Script): String {
         val image = InputImage.fromFilePath(context, uri)
         val result = recognizer(script).process(image).await()
-        // Keep block/line structure: lines inside a block are joined with newlines, blocks separated by a blank line.
-        return result.textBlocks.joinToString("\n") { block ->
-            block.lines.joinToString("\n") { it.text }
-        }.trim()
+        return OcrTextJoiner.join(result.textBlocks.map { block -> block.lines.map { it.text } }, script)
     }
 }

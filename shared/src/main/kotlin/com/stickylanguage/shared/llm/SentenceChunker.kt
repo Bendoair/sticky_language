@@ -13,6 +13,9 @@ import com.stickylanguage.shared.model.TranslationResult
 object SentenceChunker {
     private val splitter = Regex("""(?<=[.!?。！？…])\s+|\n+""")
 
+    /** The delimiters around the source in [LlmPrompts.translateUser], which models sometimes copy. */
+    private val promptMarkers = Regex("<<<|>>>")
+
     fun split(text: String): List<String> {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return emptyList()
@@ -33,7 +36,7 @@ object SentenceChunker {
         explain: Language,
         translateSentence: suspend (String) -> String,
     ): TranslationResult {
-        val sentences = split(source).map { SentencePair(text = it, translation = translateSentence(it)) }
+        val sentences = split(source).map { SentencePair(text = it, translation = translated(it, translateSentence)) }
         return TranslationResult(
             sourceLanguage = learned.code,
             explanationLanguage = explain.code,
@@ -42,6 +45,11 @@ object SentenceChunker {
             sentences = sentences,
         )
     }
+
+    /** Punctuation-only pieces such as "..." are kept as they are; models tend to echo the prompt for them. */
+    private suspend fun translated(sentence: String, translateSentence: suspend (String) -> String): String =
+        if (sentence.none { it.isLetterOrDigit() }) sentence
+        else translateSentence(sentence).replace(promptMarkers, "").trim()
 
     fun mergeBreakdowns(
         learned: Language,
