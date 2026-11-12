@@ -113,6 +113,12 @@ class ReaderViewModel @Inject constructor(
         local.update { it.copy(mode = ReaderMode.Highlight) }
     }
 
+    /** Retry after a failure: a partial on-device translation keeps its sentences and fills in the rest. */
+    fun retryTranslation() {
+        session.retryTranslation()
+        local.update { it.copy(mode = ReaderMode.Highlight) }
+    }
+
     fun clearErrors() = session.clearErrors()
 
     // ----- Word pop-up -----

@@ -1,9 +1,15 @@
 package com.stickylanguage.app.ui.reader
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -18,7 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
@@ -35,12 +44,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.stickylanguage.app.llm.local.LocalEnginePhase
@@ -58,6 +73,7 @@ import com.stickylanguage.app.ui.components.StickyTopBar
 import com.stickylanguage.app.ui.components.stickyContentInsets
 import com.stickylanguage.app.ui.theme.sticky
 import com.stickylanguage.shared.model.Token
+import com.stickylanguage.shared.model.TranslationResult
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -215,7 +231,19 @@ fun ReaderScreen(
             }
             Spacer(Modifier.height(8.dp))
 
+            // Only on-device translations are partial: their sentences show up as they arrive.
+            val partial = translation?.takeIf { !it.isComplete }
+            // The sentences that arrived stay visible under the error, and Retry fills in the rest.
+            if (partial != null && s.translateError != null) {
+                ErrorBanner(s.translateError, onRetry = viewModel::retryTranslation, onDismiss = viewModel::clearErrors)
+                Spacer(Modifier.height(8.dp))
+            }
+
             when {
+                partial != null -> StickyCard(muted = !hasFreshTranslation, modifier = Modifier.fillMaxWidth()) {
+                    PartialTranslationText(partial, translating = s.translating, color = if (hasFreshTranslation) c.ink else c.mid)
+                }
+
                 s.translating -> StickyCard(muted = true, modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = c.ink)
@@ -231,7 +259,7 @@ fun ReaderScreen(
                     }
                 }
 
-                s.translateError != null -> ErrorBanner(s.translateError, onRetry = viewModel::translate, onDismiss = viewModel::clearErrors)
+                s.translateError != null -> ErrorBanner(s.translateError, onRetry = viewModel::retryTranslation, onDismiss = viewModel::clearErrors)
 
                 translation == null -> StickyCard(dashed = true, modifier = Modifier.fillMaxWidth()) {
                     Text(
@@ -300,6 +328,51 @@ private fun EditSource(
                 inner()
             },
         )
+    }
+}
+
+private const val ARRIVING_DOTS = "arrivingDots"
+
+/**
+ * A translation that is still arriving: the sentences translated so far, followed by moving dots
+ * while [translating]. On-device sentences arrive in order, so the finished ones are always the first.
+ */
+@Composable
+private fun PartialTranslationText(translation: TranslationResult, translating: Boolean, color: Color) {
+    val text = buildAnnotatedString {
+        append(translation.translation)
+        if (translating) {
+            if (translation.translation.isNotEmpty()) append(" ")
+            appendInlineContent(ARRIVING_DOTS, "…")
+        }
+    }
+    val inlineContent = mapOf(
+        ARRIVING_DOTS to InlineTextContent(Placeholder(1.5.em, 1.em, PlaceholderVerticalAlign.TextCenter)) {
+            ArrivingDots(color, Modifier.fillMaxSize())
+        },
+    )
+    Text(text, style = MaterialTheme.typography.bodyLarge, color = color, inlineContent = inlineContent)
+}
+
+/** Three dots that light up one after another, looping. */
+@Composable
+private fun ArrivingDots(color: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "arrivingDots")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 900, easing = LinearEasing)),
+        label = "arrivingDotsPhase",
+    )
+    Row(modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { i ->
+            Box(
+                Modifier
+                    .size(4.dp)
+                    .alpha(if (phase.toInt() == i) 1f else 0.3f)
+                    .background(color, CircleShape),
+            )
+        }
     }
 }
 

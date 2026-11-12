@@ -1,12 +1,14 @@
 package com.stickylanguage.app.data.session
 
 import android.net.Uri
+import com.stickylanguage.app.data.settings.AppSettings
 import com.stickylanguage.app.data.settings.SettingsRepository
 import com.stickylanguage.app.llm.local.LocalEnginePhase
 import com.stickylanguage.app.llm.local.LocalLlmBackend
 import com.stickylanguage.app.ocr.OcrService
 import com.stickylanguage.shared.llm.LlmBackend
 import com.stickylanguage.shared.llm.LlmException
+import com.stickylanguage.shared.llm.LlmProvider
 import com.stickylanguage.shared.llm.WordSegmenter
 import com.stickylanguage.shared.model.BreakdownResult
 import com.stickylanguage.shared.model.TranslationResult
@@ -18,6 +20,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -115,8 +119,20 @@ class SessionController @Inject constructor(
         _state.update { it.copy(sourceText = text, ocrError = null) }
     }
 
-    /** Explicit Translate button (or OCR completion). */
-    fun translate() {
+    /** Explicit Translate button (or OCR completion). Translates every sentence again. */
+    fun translate() = startTranslation(resumeFrom = null)
+
+    /**
+     * Retry after a failed translation. A partial on-device translation keeps the sentences that
+     * already arrived and only generates the rest; otherwise this is a full translation.
+     */
+    fun retryTranslation() {
+        val st = _state.value
+        val partial = st.translation?.takeIf { !it.isComplete && it.sourceText == st.sourceText.trim() }
+        startTranslation(resumeFrom = partial)
+    }
+
+    private fun startTranslation(resumeFrom: TranslationResult?) {
         val source = _state.value.sourceText.trim()
         if (source.isBlank() || _state.value.translating) return
         translateJob?.cancel()
@@ -125,7 +141,10 @@ class SessionController @Inject constructor(
         translateJob = scope.launch {
             val s = settings.current()
             try {
-                val translated = llm.translate(source, s.learned, s.explanation)
+                val translated = when (s.llmProvider) {
+                    LlmProvider.LOCAL -> translateOnDevice(source, s, resumeFrom)
+                    LlmProvider.CLOUD -> llm.translate(source, s.learned, s.explanation)
+                }
                 val result = translated.copy(
                     tokens = WordSegmenter.tokenize(source, s.learned, translated.sentences.map { it.text }),
                 )
@@ -147,6 +166,29 @@ class SessionController @Inject constructor(
                 _state.update { it.copy(translating = false, translateError = e.message ?: "Translation failed") }
             }
         }
+    }
+
+    /**
+     * On-device generation is slow, so each sentence is shown as soon as it arrives. Only partial
+     * snapshots are stored here; the complete one is stored by the caller together with its tokens,
+     * so words become tappable only once the whole translation has arrived.
+     */
+    private suspend fun translateOnDevice(
+        source: String,
+        s: AppSettings,
+        resumeFrom: TranslationResult?,
+    ): TranslationResult {
+        if (resumeFrom == null) {
+            // A full run replaces the old translation, so no old words stay tappable while it loads.
+            _state.update { it.copy(translation = null, translatedSource = null) }
+        }
+        return local.translateProgressive(source, s.learned, s.explanation, resumeFrom)
+            .onEach { partial ->
+                if (!partial.isComplete) {
+                    _state.update { it.copy(translation = partial, translatedSource = it.sourceText) }
+                }
+            }
+            .last()
     }
 
     /** Word tap. Fetches details once; a word that already has them makes no call. */

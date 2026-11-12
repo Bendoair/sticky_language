@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Result of translating a text, assembled by the app from per-sentence LLM calls.
+ * While on-device calls run it is partial: [translation] joins only the finished sentences.
  * [tokens] are split on the device afterwards.
  */
 @Serializable
@@ -16,6 +17,9 @@ data class TranslationResult(
     val tokens: List<Token> = emptyList(),
     val sentences: List<SentencePair> = emptyList(),
 ) {
+    /** True once every sentence has its translation. */
+    val isComplete: Boolean get() = sentences.all { it.translation != null }
+
     fun sentenceOf(token: Token): SentencePair? =
         sentences.getOrNull(token.sentenceIndex)
             ?: sentences.firstOrNull { it.text.contains(token.surface) }
@@ -79,7 +83,8 @@ data class Token(
 @Serializable
 data class SentencePair(
     val text: String,
-    val translation: String,
+    /** Null while this sentence's translation has not arrived yet. */
+    val translation: String? = null,
 )
 
 /**

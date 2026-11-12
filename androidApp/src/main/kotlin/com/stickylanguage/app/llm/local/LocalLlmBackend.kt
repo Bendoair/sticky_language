@@ -15,9 +15,13 @@ import com.stickylanguage.shared.model.SentenceTranslation
 import com.stickylanguage.shared.model.TranslationResult
 import com.stickylanguage.shared.model.WordDetails
 import com.stickylanguage.shared.model.WordQuery
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.last
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
@@ -39,10 +43,25 @@ class LocalLlmBackend @Inject constructor(
     private val _phase = MutableStateFlow(LocalEnginePhase.Idle)
     val phase: StateFlow<LocalEnginePhase> = _phase.asStateFlow()
 
-    override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult {
+    override suspend fun translate(source: String, learned: Language, explain: Language): TranslationResult =
+        translateProgressive(source, learned, explain, resumeFrom = null).last()
+
+    /**
+     * Emits the translation as it arrives: first with every sentence pending, then each time one finishes.
+     * On failure the flow throws after the finished sentences have been emitted. Sentences already
+     * translated in [resumeFrom] are not generated again, if it was made for the same [source].
+     */
+    fun translateProgressive(
+        source: String,
+        learned: Language,
+        explain: Language,
+        resumeFrom: TranslationResult?,
+    ): Flow<TranslationResult> = flow {
         ensureReady()
         // The engine runs one generation at a time; less context means less prompt to read on the CPU.
-        return SentenceChunker.translateEachSentence(source, learned, explain, contextSentences = 1, concurrency = 1) { sentence, previous ->
+        val sentences = SentenceChunker.translateEachSentenceProgressive(
+            source, learned, explain, contextSentences = 1, concurrency = 1, resumeFrom = resumeFrom,
+        ) { sentence, previous ->
             complete(
                 system = LlmPrompts.translateSentenceSystem(learned, explain),
                 user = LlmPrompts.translateSentenceUser(sentence, previous, learned, explain),
@@ -50,6 +69,7 @@ class LocalLlmBackend @Inject constructor(
                 serializer = SentenceTranslation.serializer(),
             ).translation
         }
+        emitAll(sentences)
     }
 
     override suspend fun breakdown(source: String, learned: Language, explain: Language): BreakdownResult {
